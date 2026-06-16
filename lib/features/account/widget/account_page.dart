@@ -1,0 +1,1216 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:gap/gap.dart';
+import 'package:hiddify/core/model/constants.dart';
+import 'package:hiddify/features/account/data/account_api.dart';
+import 'package:hiddify/features/account/notifier/account_notifier.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+class AccountPage extends ConsumerStatefulWidget {
+  const AccountPage({super.key});
+
+  @override
+  ConsumerState<AccountPage> createState() => _AccountPageState();
+}
+
+class _AccountPageState extends ConsumerState<AccountPage> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.read(accountNotifierProvider.notifier).loadPublicData());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(accountNotifierProvider);
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('账户中心'),
+        actions: [
+          IconButton(
+            tooltip: '刷新',
+            onPressed: state.loading ? null : () => _guard(context, ref.read(accountNotifierProvider.notifier).refresh),
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+          const Gap(8),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: () => _guard(context, ref.read(accountNotifierProvider.notifier).refresh),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 920),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ApiBanner(theme: theme),
+                    const Gap(12),
+                    AnimatedSwitcher(
+                      duration: kAnimationDuration,
+                      child: state.isAuthenticated ? const _AccountWorkbench() : const _AuthPanel(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ApiBanner extends StatelessWidget {
+  const _ApiBanner({required this.theme});
+
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer.withValues(alpha: .72),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Icon(Icons.dns_rounded, color: theme.colorScheme.onSecondaryContainer),
+            const Gap(10),
+            Expanded(
+              child: Text(
+                '已接入网站 API：$kCBoardApiBaseUrl',
+                style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSecondaryContainer),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AuthPanel extends ConsumerStatefulWidget {
+  const _AuthPanel();
+
+  @override
+  ConsumerState<_AuthPanel> createState() => _AuthPanelState();
+}
+
+class _AuthPanelState extends ConsumerState<_AuthPanel> {
+  int _mode = 0;
+  final _loginEmail = TextEditingController();
+  final _loginPassword = TextEditingController();
+  final _registerUsername = TextEditingController();
+  final _registerEmail = TextEditingController();
+  final _registerPassword = TextEditingController();
+  final _registerCode = TextEditingController();
+  final _inviteCode = TextEditingController();
+  final _resetEmail = TextEditingController();
+  final _resetCode = TextEditingController();
+  final _resetPassword = TextEditingController();
+
+  @override
+  void dispose() {
+    _loginEmail.dispose();
+    _loginPassword.dispose();
+    _registerUsername.dispose();
+    _registerEmail.dispose();
+    _registerPassword.dispose();
+    _registerCode.dispose();
+    _inviteCode.dispose();
+    _resetEmail.dispose();
+    _resetCode.dispose();
+    _resetPassword.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(accountNotifierProvider);
+    final theme = Theme.of(context);
+    return _Surface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _ModeChip(label: '登录', selected: _mode == 0, onSelected: () => setState(() => _mode = 0)),
+              _ModeChip(label: '注册', selected: _mode == 1, onSelected: () => setState(() => _mode = 1)),
+              _ModeChip(label: '忘记密码', selected: _mode == 2, onSelected: () => setState(() => _mode = 2)),
+            ],
+          ),
+          const Gap(20),
+          Text(switch (_mode) {
+            0 => '登录后可以购买套餐、查看订阅和同步个人信息。',
+            1 => '注册会直接对接你的网站账号系统。',
+            _ => '通过邮箱验证码重置网站账号密码。',
+          }, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          const Gap(20),
+          switch (_mode) {
+            0 => _loginForm(context, state),
+            1 => _registerForm(context, state),
+            _ => _forgotForm(context, state),
+          },
+        ],
+      ),
+    );
+  }
+
+  Widget _loginForm(BuildContext context, AccountState state) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _TextField(
+          controller: _loginEmail,
+          label: '邮箱',
+          icon: Icons.mail_rounded,
+          keyboardType: TextInputType.emailAddress,
+        ),
+        const Gap(12),
+        _TextField(controller: _loginPassword, label: '密码', icon: Icons.lock_rounded, obscureText: true),
+        const Gap(18),
+        FilledButton.icon(
+          onPressed: state.loading
+              ? null
+              : () => _guard(
+                  context,
+                  () => ref.read(accountNotifierProvider.notifier).login(_loginEmail.text, _loginPassword.text),
+                ),
+          icon: state.loading
+              ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.login_rounded),
+          label: const Text('登录'),
+        ),
+      ],
+    );
+  }
+
+  Widget _registerForm(BuildContext context, AccountState state) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _TextField(controller: _registerUsername, label: '用户名', icon: Icons.person_rounded),
+        const Gap(12),
+        _TextField(
+          controller: _registerEmail,
+          label: '邮箱',
+          icon: Icons.mail_rounded,
+          keyboardType: TextInputType.emailAddress,
+        ),
+        const Gap(12),
+        _TextField(controller: _registerPassword, label: '密码', icon: Icons.lock_rounded, obscureText: true),
+        const Gap(12),
+        _VerificationCodeField(
+          controller: _registerCode,
+          label: '邮箱验证码',
+          loading: state.loading,
+          onSend: () => _guard(context, () async {
+            final message = await ref.read(accountNotifierProvider.notifier).sendRegisterCode(_registerEmail.text);
+            if (context.mounted) _showSnack(context, message);
+          }),
+        ),
+        const Gap(12),
+        _TextField(controller: _inviteCode, label: '邀请码（如网站要求）', icon: Icons.card_giftcard_rounded),
+        const Gap(18),
+        FilledButton.icon(
+          onPressed: state.loading
+              ? null
+              : () => _guard(
+                  context,
+                  () => ref
+                      .read(accountNotifierProvider.notifier)
+                      .register(
+                        username: _registerUsername.text,
+                        email: _registerEmail.text,
+                        password: _registerPassword.text,
+                        verificationCode: _registerCode.text,
+                        inviteCode: _inviteCode.text,
+                      ),
+                ),
+          icon: const Icon(Icons.person_add_rounded),
+          label: const Text('创建账号'),
+        ),
+      ],
+    );
+  }
+
+  Widget _forgotForm(BuildContext context, AccountState state) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _TextField(
+          controller: _resetEmail,
+          label: '邮箱',
+          icon: Icons.mail_rounded,
+          keyboardType: TextInputType.emailAddress,
+        ),
+        const Gap(12),
+        _VerificationCodeField(
+          controller: _resetCode,
+          label: '验证码',
+          loading: state.loading,
+          onSend: () => _guard(context, () async {
+            final message = await ref.read(accountNotifierProvider.notifier).forgotPassword(_resetEmail.text);
+            if (context.mounted) _showSnack(context, message);
+          }),
+        ),
+        const Gap(12),
+        _TextField(controller: _resetPassword, label: '新密码', icon: Icons.lock_reset_rounded, obscureText: true),
+        const Gap(18),
+        FilledButton.icon(
+          onPressed: state.loading
+              ? null
+              : () => _guard(context, () async {
+                  final message = await ref
+                      .read(accountNotifierProvider.notifier)
+                      .resetPassword(
+                        email: _resetEmail.text,
+                        verificationCode: _resetCode.text,
+                        newPassword: _resetPassword.text,
+                      );
+                  if (context.mounted) _showSnack(context, message);
+                  setState(() => _mode = 0);
+                }),
+          icon: const Icon(Icons.check_circle_rounded),
+          label: const Text('重置密码'),
+        ),
+      ],
+    );
+  }
+}
+
+class _AccountWorkbench extends ConsumerWidget {
+  const _AccountWorkbench();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(accountNotifierProvider);
+    final user = state.user;
+    final subscription = state.dashboard?.subscription;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _Surface(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    child: Text((user?.name.isNotEmpty ?? false) ? user!.name.characters.first.toUpperCase() : 'U'),
+                  ),
+                  const Gap(12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(user?.name ?? '用户', style: Theme.of(context).textTheme.titleLarge),
+                        const Gap(2),
+                        Text(user?.email ?? '', style: Theme.of(context).textTheme.bodyMedium),
+                      ],
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => ref.read(accountNotifierProvider.notifier).logout(),
+                    icon: const Icon(Icons.logout_rounded),
+                    label: const Text('退出'),
+                  ),
+                ],
+              ),
+              const Gap(18),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _Metric(label: '余额', value: '¥${(user?.balance ?? 0).toStringAsFixed(2)}'),
+                  _Metric(label: '订阅状态', value: _statusText(subscription?.status ?? 'none')),
+                  _Metric(label: '到期时间', value: subscription?.expireTime ?? '未开通'),
+                  _Metric(
+                    label: '在线设备',
+                    value:
+                        '${subscription?.onlineDevices ?? subscription?.currentDevices ?? 0}/${subscription?.deviceLimit ?? 0}',
+                  ),
+                  _Metric(label: '累计消费', value: '¥${(state.dashboard?.totalSpent ?? 0).toStringAsFixed(2)}'),
+                ],
+              ),
+              if ((subscription?.subscriptionUrl ?? '').isNotEmpty) ...[
+                const Gap(14),
+                _SubscriptionSyncStatus(syncing: state.syncingSubscription),
+              ],
+            ],
+          ),
+        ),
+        const Gap(14),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 760;
+            if (!wide) {
+              return const Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [_PackagesPanel(), Gap(14), _ProfilePanel(), Gap(14), _OrdersPanel()],
+              );
+            }
+            return const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 6, child: _PackagesPanel()),
+                Gap(14),
+                Expanded(flex: 4, child: Column(children: [_ProfilePanel(), Gap(14), _OrdersPanel()])),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _PackagesPanel extends ConsumerWidget {
+  const _PackagesPanel();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(accountNotifierProvider);
+    return _Surface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _SectionHeader(icon: Icons.inventory_2_rounded, title: '套餐购买', subtitle: '从网站同步可售套餐'),
+          const Gap(12),
+          if (state.packages.isEmpty)
+            const _EmptyLine(text: '暂无套餐，请确认网站后台已启用套餐。')
+          else
+            ...state.packages.map((package) => _PackageTile(package: package)),
+        ],
+      ),
+    );
+  }
+}
+
+class _PackageTile extends ConsumerWidget {
+  const _PackageTile({required this.package});
+
+  final AccountPackage package;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final methods = ref.watch(accountNotifierProvider).paymentMethods;
+    final loading = ref.watch(accountNotifierProvider).loading;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: package.isRecommended ? theme.colorScheme.primary : theme.colorScheme.outlineVariant,
+          ),
+          color: package.isRecommended
+              ? theme.colorScheme.primaryContainer.withValues(alpha: .36)
+              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: .34),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(child: Text(package.name, style: theme.textTheme.titleMedium)),
+                        if (package.isRecommended) ...[const Gap(8), const _Tag(text: '推荐')],
+                      ],
+                    ),
+                    const Gap(6),
+                    Text(
+                      package.description.isEmpty
+                          ? '${package.durationDays} 天 · ${package.deviceLimit} 台设备'
+                          : package.description,
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                    const Gap(8),
+                    Text(
+                      '¥${package.price.toStringAsFixed(2)}',
+                      style: theme.textTheme.headlineSmall?.copyWith(color: theme.colorScheme.primary),
+                    ),
+                  ],
+                ),
+              ),
+              const Gap(12),
+              FilledButton.tonalIcon(
+                onPressed: loading ? null : () => _showPaymentSheet(context, package: package, paymentMethods: methods),
+                icon: const Icon(Icons.shopping_bag_rounded),
+                label: const Text('购买'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentSheet extends ConsumerStatefulWidget {
+  const _PaymentSheet({required this.package, required this.paymentMethods});
+
+  final AccountPackage package;
+  final List<PaymentMethod> paymentMethods;
+
+  @override
+  ConsumerState<_PaymentSheet> createState() => _PaymentSheetState();
+}
+
+class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
+  PaymentMethod? _selectedMethod;
+  OrderResult? _order;
+  OrderResult? _payment;
+  AccountOrderStatus? _status;
+  Timer? _pollTimer;
+  bool _busy = false;
+  bool _openingPayment = false;
+
+  String? get _paymentUrl =>
+      _payment?.paymentUrl ?? _payment?.paymentQrCode ?? _order?.paymentUrl ?? _order?.paymentQrCode;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMethod = widget.paymentMethods.isEmpty ? null : widget.paymentMethods.first;
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final order = _payment ?? _order;
+    final paymentUrl = _paymentUrl;
+    return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      title: const Text('确认购买'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .42),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(widget.package.name, style: theme.textTheme.titleMedium),
+                      const Gap(4),
+                      Text(
+                        '${widget.package.durationDays} 天 · ${widget.package.deviceLimit} 台设备',
+                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                      const Gap(8),
+                      Text(
+                        '¥${widget.package.price.toStringAsFixed(2)}',
+                        style: theme.textTheme.headlineSmall?.copyWith(color: theme.colorScheme.primary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const Gap(14),
+              Text('支付方式', style: theme.textTheme.titleSmall),
+              const Gap(8),
+              if (widget.paymentMethods.isEmpty)
+                const _EmptyLine(text: '暂无可用支付方式，请在网站后台启用。')
+              else
+                ...widget.paymentMethods.map(
+                  (method) => _PaymentMethodOption(
+                    method: method,
+                    selected: _selectedMethod?.id == method.id,
+                    enabled: !_busy && order?.status != 'paid',
+                    onTap: () => setState(() => _selectedMethod = method),
+                  ),
+                ),
+              if (paymentUrl != null && paymentUrl.isNotEmpty) ...[
+                const Gap(12),
+                Center(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: theme.colorScheme.outlineVariant),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: QrImageView(data: paymentUrl, size: 220),
+                    ),
+                  ),
+                ),
+                const Gap(8),
+                Text(
+                  '用支付宝扫码，或点击“打开支付”跳转到支付页面。支付完成后本窗口会自动刷新状态。',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
+              if (_status != null || order != null) ...[
+                const Gap(12),
+                _PaymentStatusLine(status: _status?.status ?? order?.status ?? 'pending'),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: _busy ? null : () => Navigator.of(context).pop(), child: const Text('关闭')),
+        if (paymentUrl != null && paymentUrl.isNotEmpty)
+          OutlinedButton.icon(
+            onPressed: _openingPayment ? null : _openPaymentUrl,
+            icon: _openingPayment
+                ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.open_in_new_rounded),
+            label: const Text('打开支付'),
+          ),
+        FilledButton.icon(
+          onPressed: _busy || widget.paymentMethods.isEmpty ? null : _startPayment,
+          icon: _busy
+              ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.qr_code_2_rounded),
+          label: Text(paymentUrl == null || paymentUrl.isEmpty ? '生成支付二维码' : '重新生成'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _startPayment() async {
+    final method = _selectedMethod;
+    if (method == null) return;
+    setState(() => _busy = true);
+    try {
+      final notifier = ref.read(accountNotifierProvider.notifier);
+      final order = _order?.id == 0 || _order == null ? await notifier.createPackageOrder(widget.package) : _order!;
+      final payment = (order.paymentUrl ?? '').isNotEmpty
+          ? order
+          : await notifier.createOrderPayment(orderId: order.id, paymentMethod: method);
+      if (!mounted) return;
+      setState(() {
+        _order = order;
+        _payment = payment;
+        _status = AccountOrderStatus(
+          orderNo: payment.orderNo,
+          status: payment.status.isEmpty ? 'pending' : payment.status,
+        );
+      });
+      _startPolling(payment.orderNo);
+      final url = _paymentUrl;
+      if (url != null && url.isNotEmpty) {
+        await _launchPaymentUrl(url);
+      }
+    } on AccountApiException catch (error) {
+      if (mounted) _showSnack(context, error.message);
+    } catch (error) {
+      if (mounted) _showSnack(context, error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _startPolling(String orderNo) {
+    _pollTimer?.cancel();
+    if (orderNo.isEmpty) return;
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _checkStatus(orderNo));
+    unawaited(_checkStatus(orderNo));
+  }
+
+  Future<void> _checkStatus(String orderNo) async {
+    try {
+      final status = await ref.read(accountNotifierProvider.notifier).checkOrderStatus(orderNo);
+      if (!mounted) return;
+      setState(() => _status = status);
+      if (status.isPaid) {
+        _pollTimer?.cancel();
+        await ref.read(accountNotifierProvider.notifier).refreshAfterPayment();
+        if (!mounted) return;
+        _showSnack(context, '支付成功，套餐已自动开通并同步订阅');
+        Navigator.of(context).pop();
+      } else if (status.isFinished) {
+        _pollTimer?.cancel();
+      }
+    } catch (_) {
+      // Keep polling; transient network failures should not close the payment flow.
+    }
+  }
+
+  Future<void> _openPaymentUrl() async {
+    final url = _paymentUrl;
+    if (url == null || url.isEmpty) return;
+    setState(() => _openingPayment = true);
+    try {
+      await _launchPaymentUrl(url);
+    } finally {
+      if (mounted) setState(() => _openingPayment = false);
+    }
+  }
+
+  Future<void> _launchPaymentUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      if (mounted) _showSnack(context, '支付链接无效');
+      return;
+    }
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (mounted) _showSnack(context, opened ? '已打开支付页面' : '无法打开支付页面');
+  }
+}
+
+class _PaymentStatusLine extends StatelessWidget {
+  const _PaymentStatusLine({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final paid = status == 'paid';
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: paid ? theme.colorScheme.primaryContainer : theme.colorScheme.surface,
+        border: Border.all(color: paid ? theme.colorScheme.primary : theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            Icon(paid ? Icons.check_circle_rounded : Icons.hourglass_top_rounded),
+            const Gap(8),
+            Expanded(child: Text('支付状态：${_statusText(status)}')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentMethodOption extends StatelessWidget {
+  const _PaymentMethodOption({
+    required this.method,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final PaymentMethod method;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(8),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: selected ? theme.colorScheme.primary : theme.colorScheme.outlineVariant),
+            color: selected ? theme.colorScheme.primaryContainer.withValues(alpha: .42) : theme.colorScheme.surface,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Icon(
+                  selected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded,
+                  color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+                ),
+                const Gap(10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(method.name, style: theme.textTheme.bodyMedium),
+                      if (method.key.isNotEmpty)
+                        Text(
+                          method.key,
+                          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfilePanel extends ConsumerStatefulWidget {
+  const _ProfilePanel();
+
+  @override
+  ConsumerState<_ProfilePanel> createState() => _ProfilePanelState();
+}
+
+class _ProfilePanelState extends ConsumerState<_ProfilePanel> {
+  final _displayName = TextEditingController();
+  final _phone = TextEditingController();
+  final _bio = TextEditingController();
+  final _oldPassword = TextEditingController();
+  final _newPassword = TextEditingController();
+  int? _loadedUserId;
+
+  @override
+  void dispose() {
+    _displayName.dispose();
+    _phone.dispose();
+    _bio.dispose();
+    _oldPassword.dispose();
+    _newPassword.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(accountNotifierProvider);
+    final user = state.user;
+    if (user != null && user.id != _loadedUserId) {
+      _loadedUserId = user.id;
+      _displayName.text = user.displayName;
+      _phone.text = user.phone;
+      _bio.text = user.bio;
+    }
+    return _Surface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _SectionHeader(icon: Icons.badge_rounded, title: '个人信息', subtitle: '同步网站个人资料'),
+          const Gap(12),
+          _TextField(controller: _displayName, label: '显示名称', icon: Icons.person_rounded),
+          const Gap(10),
+          _TextField(controller: _phone, label: '手机号', icon: Icons.phone_rounded, keyboardType: TextInputType.phone),
+          const Gap(10),
+          _TextField(controller: _bio, label: '简介', icon: Icons.notes_rounded, maxLines: 2),
+          const Gap(12),
+          FilledButton.icon(
+            onPressed: state.loading
+                ? null
+                : () => _guard(
+                    context,
+                    () => ref
+                        .read(accountNotifierProvider.notifier)
+                        .updateProfile(displayName: _displayName.text, phone: _phone.text, bio: _bio.text),
+                  ),
+            icon: const Icon(Icons.save_rounded),
+            label: const Text('保存资料'),
+          ),
+          const Gap(18),
+          const Divider(height: 1),
+          const Gap(14),
+          _TextField(controller: _oldPassword, label: '当前密码', icon: Icons.lock_open_rounded, obscureText: true),
+          const Gap(10),
+          _TextField(controller: _newPassword, label: '新密码', icon: Icons.lock_reset_rounded, obscureText: true),
+          const Gap(12),
+          OutlinedButton.icon(
+            onPressed: state.loading
+                ? null
+                : () => _guard(context, () async {
+                    await ref
+                        .read(accountNotifierProvider.notifier)
+                        .changePassword(oldPassword: _oldPassword.text, newPassword: _newPassword.text);
+                    _oldPassword.clear();
+                    _newPassword.clear();
+                  }),
+            icon: const Icon(Icons.password_rounded),
+            label: const Text('修改密码'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrdersPanel extends ConsumerWidget {
+  const _OrdersPanel();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final orders = ref.watch(accountNotifierProvider).orders;
+    return _Surface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _SectionHeader(icon: Icons.receipt_long_rounded, title: '最近订单', subtitle: '显示最近 20 条'),
+          const Gap(12),
+          if (orders.isEmpty)
+            const _EmptyLine(text: '暂无订单')
+          else
+            ...orders
+                .take(6)
+                .map(
+                  (order) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(order.packageName),
+                    subtitle: Text('${order.orderNo} · ${order.createdAt}'),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('¥${order.amount.toStringAsFixed(2)}'),
+                        Text(_statusText(order.status), style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    ),
+                  ),
+                ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubscriptionSyncStatus extends ConsumerWidget {
+  const _SubscriptionSyncStatus({required this.syncing});
+
+  final bool syncing;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: theme.colorScheme.surface,
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            if (syncing)
+              const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            else
+              const Icon(Icons.cloud_sync_rounded),
+            const Gap(8),
+            Expanded(
+              child: Text(
+                syncing ? '正在同步账户订阅' : '账户订阅已自动写入本机配置',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: syncing
+                  ? null
+                  : () => _guard(context, ref.read(accountNotifierProvider.notifier).syncSubscription),
+              icon: const Icon(Icons.update_rounded),
+              label: const Text('同步'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Surface extends StatelessWidget {
+  const _Surface({required this.child, this.padding = const EdgeInsets.all(16)});
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(padding: padding, child: child),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.icon, required this.title, required this.subtitle});
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: theme.colorScheme.primary),
+        const Gap(10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: theme.textTheme.titleMedium),
+              Text(subtitle, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Metric extends StatelessWidget {
+  const _Metric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: 132,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              const Gap(4),
+              Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleMedium),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TextField extends StatelessWidget {
+  const _TextField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    this.obscureText = false,
+    this.keyboardType,
+    this.maxLines = 1,
+    this.inputFormatters,
+    this.textInputAction,
+    this.autofillHints,
+    this.maxLength,
+    this.helperText,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final bool obscureText;
+  final TextInputType? keyboardType;
+  final int maxLines;
+  final List<TextInputFormatter>? inputFormatters;
+  final TextInputAction? textInputAction;
+  final Iterable<String>? autofillHints;
+  final int? maxLength;
+  final String? helperText;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      inputFormatters: inputFormatters,
+      textInputAction: textInputAction,
+      autofillHints: autofillHints,
+      maxLength: maxLength,
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon),
+        labelText: label,
+        helperText: helperText,
+        counterText: maxLength == null ? null : '',
+        border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
+      ),
+    );
+  }
+}
+
+class _VerificationCodeField extends StatelessWidget {
+  const _VerificationCodeField({
+    required this.controller,
+    required this.label,
+    required this.loading,
+    required this.onSend,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final bool loading;
+  final VoidCallback onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    final field = _TextField(
+      controller: controller,
+      label: label,
+      icon: Icons.verified_rounded,
+      keyboardType: TextInputType.number,
+      textInputAction: TextInputAction.next,
+      autofillHints: const [AutofillHints.oneTimeCode],
+      maxLength: 6,
+      helperText: '6 位数字验证码',
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
+    );
+
+    final button = SizedBox(
+      height: 56,
+      child: OutlinedButton.icon(
+        onPressed: loading ? null : onSend,
+        icon: loading
+            ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.mark_email_read_rounded),
+        label: const Text('发送验证码'),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 360) {
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [field, const Gap(8), button]);
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: field),
+            const Gap(8),
+            SizedBox(width: 132, child: button),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ModeChip extends StatelessWidget {
+  const _ModeChip({required this.label, required this.selected, required this.onSelected});
+
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(label: Text(label), selected: selected, onSelected: (_) => onSelected());
+  }
+}
+
+class _Tag extends StatelessWidget {
+  const _Tag({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(color: theme.colorScheme.primary, borderRadius: BorderRadius.circular(4)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: Text(text, style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onPrimary)),
+      ),
+    );
+  }
+}
+
+class _EmptyLine extends StatelessWidget {
+  const _EmptyLine({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
+    );
+  }
+}
+
+Future<void> _guard(BuildContext context, Future<void> Function() action) async {
+  try {
+    await action();
+    if (context.mounted) _showSnack(context, '操作成功');
+  } on AccountApiException catch (error) {
+    if (context.mounted) _showSnack(context, error.message);
+  } catch (error) {
+    if (context.mounted) _showSnack(context, error.toString());
+  }
+}
+
+Future<void> _showPaymentSheet(
+  BuildContext context, {
+  required AccountPackage package,
+  required List<PaymentMethod> paymentMethods,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (context) => _PaymentSheet(package: package, paymentMethods: paymentMethods),
+  );
+}
+
+void _showSnack(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).clearSnackBars();
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+}
+
+String _statusText(String status) {
+  return switch (status) {
+    'active' => '正常',
+    'pending' => '待支付',
+    'paid' => '已支付',
+    'cancelled' => '已取消',
+    'expired' => '已过期',
+    'failed' => '失败',
+    _ => status.isEmpty || status == 'none' ? '未开通' : status,
+  };
+}

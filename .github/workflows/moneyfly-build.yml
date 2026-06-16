@@ -1,0 +1,255 @@
+name: MoneyFly Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_android:
+        description: Build Android APK and AAB
+        required: true
+        type: boolean
+        default: true
+      build_macos:
+        description: Build macOS app zip
+        required: true
+        type: boolean
+        default: true
+      build_windows:
+        description: Build Windows portable zip
+        required: true
+        type: boolean
+        default: true
+  push:
+    branches:
+      - main
+      - master
+      - dev
+      - moneyfly-build
+
+concurrency:
+  group: moneyfly-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: "3.38.5"
+  JAVA_VERSION: "17"
+  ANDROID_NDK_VERSION: "28.2.13676358"
+  BUILD_TARGET: "lib/main.dart"
+
+jobs:
+  android:
+    name: Android
+    if: github.event_name != 'workflow_dispatch' || inputs.build_android
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;${ANDROID_NDK_VERSION}"
+          yes | sdkmanager --licenses >/dev/null || true
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Prepare Flutter sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter --version
+          flutter pub get
+          dart run build_runner build --delete-conflicting-outputs
+          dart run slang
+
+      - name: Download Android core
+        shell: bash
+        run: |
+          set -euo pipefail
+          CORE_VERSION="$(grep '^core.version=' dependencies.properties | cut -d= -f2)"
+          CORE_URL="https://github.com/hiddify/hiddify-next-core/releases/download/v${CORE_VERSION}"
+          mkdir -p android/app/libs
+          curl -L "${CORE_URL}/hiddify-lib-android.tar.gz" | tar xz -C android/app/libs
+          ls -la android/app/libs
+
+      - name: Build APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter build apk \
+            --release \
+            --target "${BUILD_TARGET}" \
+            --target-platform android-arm,android-arm64,android-x64 \
+            --dart-define=sentry_dsn=
+
+      - name: Build AAB
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter build appbundle \
+            --release \
+            --target "${BUILD_TARGET}" \
+            --dart-define=sentry_dsn=
+
+      - name: Collect Android artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/android
+          find build/app/outputs -type f \( -name "*.apk" -o -name "*.aab" \) -print -exec cp {} artifacts/android/ \;
+          test "$(find artifacts/android -type f | wc -l)" -gt 0
+          ls -la artifacts/android
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: moneyfly-android
+          path: artifacts/android/*
+          retention-days: 14
+
+  macos:
+    name: macOS
+    if: github.event_name != 'workflow_dispatch' || inputs.build_macos
+    runs-on: macos-15
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Prepare Flutter sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter --version
+          flutter config --enable-macos-desktop
+          flutter pub get
+          dart run build_runner build --delete-conflicting-outputs
+          dart run slang
+
+      - name: Download macOS core
+        shell: bash
+        run: |
+          set -euo pipefail
+          CORE_VERSION="$(grep '^core.version=' dependencies.properties | cut -d= -f2)"
+          CORE_URL="https://github.com/hiddify/hiddify-next-core/releases/download/v${CORE_VERSION}"
+          mkdir -p hiddify-core/bin
+          curl -L "${CORE_URL}/hiddify-lib-macos.tar.gz" | tar xz -C hiddify-core/bin
+          ls -la hiddify-core/bin
+
+      - name: Build macOS app
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter build macos \
+            --release \
+            --target "${BUILD_TARGET}" \
+            --dart-define=sentry_dsn=
+
+      - name: Collect macOS artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_PATH="build/macos/Build/Products/Release/Hiddify.app"
+          test -d "${APP_PATH}"
+          codesign --force --deep --sign - "${APP_PATH}" || true
+          mkdir -p artifacts/macos
+          ditto -c -k --sequesterRsrc --keepParent "${APP_PATH}" artifacts/macos/Hiddify-macOS.zip
+          ls -la artifacts/macos
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: moneyfly-macos
+          path: artifacts/macos/*
+          retention-days: 14
+
+  windows:
+    name: Windows
+    if: github.event_name != 'workflow_dispatch' || inputs.build_windows
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Prepare Flutter sources
+        shell: pwsh
+        run: |
+          flutter --version
+          flutter config --enable-windows-desktop
+          flutter pub get
+          dart run build_runner build --delete-conflicting-outputs
+          dart run slang
+
+      - name: Download Windows core
+        shell: pwsh
+        run: |
+          $coreLine = Get-Content dependencies.properties | Where-Object { $_ -match '^core\.version=' } | Select-Object -First 1
+          $coreVersion = $coreLine.Split('=')[1].Trim()
+          $coreUrl = "https://github.com/hiddify/hiddify-next-core/releases/download/v$coreVersion"
+          New-Item -ItemType Directory -Path hiddify-core\bin -Force | Out-Null
+          curl.exe -L "$coreUrl/hiddify-lib-windows-amd64.tar.gz" -o hiddify-lib-windows-amd64.tar.gz
+          tar -xzf hiddify-lib-windows-amd64.tar.gz -C hiddify-core\bin
+          Get-ChildItem hiddify-core\bin
+
+      - name: Build Windows app
+        shell: pwsh
+        run: |
+          flutter build windows `
+            --release `
+            --target "${env:BUILD_TARGET}" `
+            --dart-define=sentry_dsn=
+
+      - name: Collect Windows artifact
+        shell: pwsh
+        run: |
+          $releaseDir = "build\windows\x64\runner\Release"
+          if (!(Test-Path "$releaseDir\Hiddify.exe")) {
+            Get-ChildItem -Recurse build\windows | Select-Object FullName
+            throw "Windows release executable was not generated."
+          }
+          New-Item -ItemType Directory -Path artifacts\windows -Force | Out-Null
+          Compress-Archive -Path "$releaseDir\*" -DestinationPath artifacts\windows\Hiddify-Windows-x64.zip -Force
+          Get-ChildItem artifacts\windows
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: moneyfly-windows
+          path: artifacts/windows/*
+          retention-days: 14
