@@ -334,6 +334,7 @@ jobs:
           $appVersion = ($versionLine -replace '^version:\s*', '') -replace '\+.*$', ''
           $sourceDir = (Resolve-Path $releaseDir).Path
           $outputDir = (Resolve-Path artifacts\windows).Path
+          $iconPath = (Resolve-Path "windows\runner\resources\app_icon.ico").Path
           $issPath = Join-Path $env:RUNNER_TEMP "moneyfly-installer.iss"
           @"
           [Setup]
@@ -351,7 +352,7 @@ jobs:
           Compression=lzma2
           SolidCompression=yes
           WizardStyle=modern
-          SetupIconFile=windows\runner\resources\app_icon.ico
+          SetupIconFile=$iconPath
           ArchitecturesAllowed=x64
           ArchitecturesInstallIn64BitMode=x64
           CloseApplications=force
