@@ -28,7 +28,6 @@ class _AccountPageState extends ConsumerState<AccountPage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(accountNotifierProvider);
-    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('账户中心'),
@@ -52,46 +51,12 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _ApiBanner(theme: theme),
-                    const Gap(12),
                     AnimatedSwitcher(
                       duration: kAnimationDuration,
                       child: state.isAuthenticated ? const _AccountWorkbench() : const _AuthPanel(),
                     ),
                   ],
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ApiBanner extends StatelessWidget {
-  const _ApiBanner({required this.theme});
-
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondaryContainer.withValues(alpha: .72),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Icon(Icons.dns_rounded, color: theme.colorScheme.onSecondaryContainer),
-            const Gap(10),
-            Expanded(
-              child: Text(
-                '已接入网站 API：$kCBoardApiBaseUrl',
-                style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSecondaryContainer),
               ),
             ),
           ],
