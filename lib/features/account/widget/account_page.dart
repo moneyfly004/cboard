@@ -142,6 +142,7 @@ class _AuthPanelState extends ConsumerState<_AuthPanel> {
         _TextField(
           controller: _loginEmail,
           label: '邮箱',
+          hintText: '请输入邮箱地址',
           icon: Icons.mail_rounded,
           keyboardType: TextInputType.emailAddress,
         ),
@@ -1021,6 +1022,7 @@ class _TextField extends StatelessWidget {
     this.autofillHints,
     this.maxLength,
     this.helperText,
+    this.hintText,
   });
 
   final TextEditingController controller;
@@ -1034,6 +1036,7 @@ class _TextField extends StatelessWidget {
   final Iterable<String>? autofillHints;
   final int? maxLength;
   final String? helperText;
+  final String? hintText;
 
   @override
   Widget build(BuildContext context) {
@@ -1049,6 +1052,7 @@ class _TextField extends StatelessWidget {
       decoration: InputDecoration(
         prefixIcon: Icon(icon),
         labelText: label,
+        hintText: hintText,
         helperText: helperText,
         counterText: maxLength == null ? null : '',
         border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
