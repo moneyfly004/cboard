@@ -133,6 +133,8 @@ jobs:
           CORE_URL="https://github.com/hiddify/hiddify-next-core/releases/download/v${CORE_VERSION}"
           mkdir -p android/app/libs
           curl -L "${CORE_URL}/hiddify-lib-android.tar.gz" | tar xz -C android/app/libs
+          STRIP="${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+          find android/app/libs -name '*.so' -print -exec "${STRIP}" --strip-unneeded {} \;
           ls -la android/app/libs
 
       - name: Configure Android signing
@@ -184,6 +186,7 @@ jobs:
             --target-platform android-arm,android-arm64,android-x64 \
             --build-name="${APP_VERSION}" \
             --build-number="${GITHUB_RUN_NUMBER}" \
+            --split-debug-info=build/debug-info/android/universal \
             --dart-define="moneyfly_build_number=${GITHUB_RUN_NUMBER}" \
             --dart-define=sentry_dsn=
           cp build/app/outputs/flutter-apk/app-release.apk build/moneyfly-apk-cache/app-release.apk
@@ -194,6 +197,7 @@ jobs:
             --target-platform android-arm,android-arm64,android-x64 \
             --build-name="${APP_VERSION}" \
             --build-number="${GITHUB_RUN_NUMBER}" \
+            --split-debug-info=build/debug-info/android/split \
             --dart-define="moneyfly_build_number=${GITHUB_RUN_NUMBER}" \
             --dart-define=sentry_dsn=
 
@@ -206,6 +210,7 @@ jobs:
             --target "${BUILD_TARGET}" \
             --build-name="${APP_VERSION}" \
             --build-number="${GITHUB_RUN_NUMBER}" \
+            --split-debug-info=build/debug-info/android/aab \
             --dart-define="moneyfly_build_number=${GITHUB_RUN_NUMBER}" \
             --dart-define=sentry_dsn=
 
@@ -269,6 +274,11 @@ jobs:
           CORE_URL="https://github.com/hiddify/hiddify-next-core/releases/download/v${CORE_VERSION}"
           mkdir -p hiddify-core/bin
           curl -L "${CORE_URL}/hiddify-lib-macos.tar.gz" | tar xz -C hiddify-core/bin
+          while IFS= read -r file; do
+            if file "${file}" | grep -q 'Mach-O'; then
+              strip -x "${file}" || true
+            fi
+          done < <(find hiddify-core/bin -type f)
           ls -la hiddify-core/bin
 
       - name: Build macOS app
@@ -280,6 +290,7 @@ jobs:
             --target "${BUILD_TARGET}" \
             --build-name="${APP_VERSION}" \
             --build-number="${GITHUB_RUN_NUMBER}" \
+            --split-debug-info=build/debug-info/macos \
             --dart-define="moneyfly_build_number=${GITHUB_RUN_NUMBER}" \
             --dart-define=sentry_dsn=
 
@@ -294,7 +305,24 @@ jobs:
           test -d "${APP_PATH}"
           ICONSET_DIR="$(mktemp -d)"
           iconutil -c iconset -o "${ICONSET_DIR}/AppIcon.iconset" "${APP_PATH}/Contents/Resources/AppIcon.icns"
-          test -f "${ICONSET_DIR}/AppIcon.iconset/icon_512x512@2x.png"
+          find "${ICONSET_DIR}/AppIcon.iconset" -maxdepth 1 -type f -print
+          python3 - "${ICONSET_DIR}/AppIcon.iconset" <<'PY'
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          iconset = Path(sys.argv[1])
+          for png in iconset.glob("*.png"):
+              output = subprocess.check_output(
+                  ["sips", "-g", "pixelWidth", "-g", "pixelHeight", str(png)],
+                  text=True,
+              )
+              if "pixelWidth: 1024" in output and "pixelHeight: 1024" in output:
+                  print(f"Found 1024x1024 icon: {png.name}")
+                  break
+          else:
+              raise SystemExit("AppIcon.icns does not contain a 1024x1024 bitmap")
+          PY
           codesign --force --deep --sign - "${APP_PATH}" || true
           mkdir -p artifacts/macos
           DMG_DIR="$(mktemp -d)"
@@ -305,6 +333,7 @@ jobs:
             -srcfolder "${DMG_DIR}" \
             -ov \
             -format UDZO \
+            -imagekey zlib-level=9 \
             "artifacts/macos/${APP_NAME}-macOS-universal.dmg"
           pkgbuild \
             --install-location /Applications \
@@ -366,6 +395,7 @@ jobs:
             --target "${env:BUILD_TARGET}" `
             --build-name="${env:APP_VERSION}" `
             --build-number="${env:GITHUB_RUN_NUMBER}" `
+            --split-debug-info=build\debug-info\windows `
             --dart-define="moneyfly_build_number=${env:GITHUB_RUN_NUMBER}" `
             --dart-define=sentry_dsn=
 
@@ -383,8 +413,9 @@ jobs:
             Get-ChildItem -Recurse build\windows | Select-Object FullName
             throw "Windows release executable was not generated."
           }
+          Get-ChildItem -Path $releaseDir -Recurse -Include *.pdb,*.exp,*.lib -File | Remove-Item -Force
           New-Item -ItemType Directory -Path artifacts\windows -Force | Out-Null
-          Compress-Archive -Path "$releaseDir\*" -DestinationPath "artifacts\windows\${env:APP_NAME}-Windows-x64-Portable.zip" -Force
+          7z a -tzip -mx=9 "artifacts\windows\${env:APP_NAME}-Windows-x64-Portable.zip" "$releaseDir\*" | Out-Host
           $appVersion = "${env:APP_VERSION}"
           $sourceDir = (Resolve-Path $releaseDir).Path
           $outputDir = (Resolve-Path artifacts\windows).Path
