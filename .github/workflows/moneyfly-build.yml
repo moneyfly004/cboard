@@ -18,6 +18,11 @@ on:
         required: true
         type: boolean
         default: true
+      build_windows7:
+        description: Attempt Windows 7 legacy package after compatibility checks
+        required: true
+        type: boolean
+        default: false
       publish_release:
         description: Publish build files to GitHub Releases
         required: true
@@ -353,7 +358,7 @@ jobs:
 
   windows:
     name: Windows
-    if: github.event_name != 'workflow_dispatch' || inputs.build_windows
+    if: github.event_name != 'workflow_dispatch' || inputs.build_windows || inputs.build_windows7
     needs: quality
     runs-on: windows-latest
     timeout-minutes: 90
@@ -483,6 +488,109 @@ jobs:
           & $iscc $issPath
           Get-ChildItem artifacts\windows
 
+      - name: Check Windows 7 compatibility
+        shell: pwsh
+        run: |
+          $releaseDir = "build\windows\x64\runner\Release"
+          New-Item -ItemType Directory -Path artifacts\windows7-check -Force | Out-Null
+          python scripts\check_windows7_compat.py `
+            --release-dir "$releaseDir" `
+            --manifest windows\runner\runner.exe.manifest `
+            --installer-min-version 10.0 `
+            --flutter-version "${env:FLUTTER_VERSION}" `
+            --json artifacts\windows7-check\windows7-compatibility.json `
+            --markdown artifacts\windows7-check\Windows7-Compatibility.md
+
+      - name: Build Windows 7 legacy package
+        if: github.event_name == 'workflow_dispatch' && inputs.build_windows7
+        shell: pwsh
+        run: |
+          $releaseDir = "build\windows\x64\runner\Release"
+          python scripts\check_windows7_compat.py `
+            --release-dir "$releaseDir" `
+            --manifest windows\runner\runner.exe.manifest `
+            --installer-min-version 6.1 `
+            --flutter-version "${env:FLUTTER_VERSION}" `
+            --json artifacts\windows7-check\windows7-legacy-compatibility.json `
+            --markdown artifacts\windows7-check\Windows7-Legacy-Compatibility.md `
+            --fail-on-incompatible
+
+          7z a -tzip -mx=9 "artifacts\windows\${env:APP_NAME}-Windows7-x64-Portable.zip" "$releaseDir\*" | Out-Host
+
+          $appVersion = "${env:APP_VERSION}"
+          $sourceDir = (Resolve-Path $releaseDir).Path
+          $outputDir = (Resolve-Path artifacts\windows).Path
+          $iconPath = (Resolve-Path "windows\runner\resources\app_icon.ico").Path
+          $issPath = Join-Path $env:RUNNER_TEMP "moneyfly-windows7-installer.iss"
+          @"
+          [Setup]
+          AppId={{A826F4E6-E142-4B9D-9F9D-17304829F2B1}
+          AppName=${env:APP_NAME}
+          AppVersion=$appVersion
+          AppPublisher=MoneyFly
+          AppPublisherURL=https://dy.moneyfly.top
+          AppSupportURL=https://dy.moneyfly.top
+          AppUpdatesURL=https://dy.moneyfly.top
+          DefaultDirName={autopf64}\MoneyFly
+          MinVersion=6.1
+          DisableProgramGroupPage=yes
+          OutputDir=$outputDir
+          OutputBaseFilename=${env:APP_NAME}-Windows7-x64-Setup
+          Compression=lzma2
+          SolidCompression=yes
+          WizardStyle=modern
+          SetupIconFile=$iconPath
+          ArchitecturesAllowed=x64
+          ArchitecturesInstallIn64BitMode=x64
+          CloseApplications=force
+
+          [Languages]
+          Name: "english"; MessagesFile: "compiler:Default.isl"
+
+          [Tasks]
+          Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkedonce
+
+          [Files]
+          Source: "$sourceDir\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [Icons]
+          Name: "{autoprograms}\${env:APP_NAME}"; Filename: "{app}\${env:APP_NAME}.exe"
+          Name: "{autodesktop}\${env:APP_NAME}"; Filename: "{app}\${env:APP_NAME}.exe"; Tasks: desktopicon
+
+          [Run]
+          Filename: "{app}\${env:APP_NAME}.exe"; Description: "{cm:LaunchProgram,${env:APP_NAME}}"; Flags: nowait postinstall skipifsilent
+
+          [UninstallDelete]
+          Type: filesandordirs; Name: "{userappdata}\MoneyFly"
+
+          [Code]
+          function InitializeSetup(): Boolean;
+          var
+            ResultCode: Integer;
+          begin
+            Exec('taskkill', '/F /IM MoneyFly.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+            Exec('taskkill', '/F /IM hiddify.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+            Exec('net', 'stop "HiddifyTunnelService"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+            Exec('sc.exe', 'delete "HiddifyTunnelService"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+            Result := True;
+          end;
+          "@ | Set-Content -Path $issPath -Encoding UTF8
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) {
+            $iscc = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          }
+          & $iscc $issPath
+          Get-ChildItem artifacts\windows
+
+      - name: Upload Windows 7 compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: moneyfly-windows7-compatibility
+          path: artifacts/windows7-check/*
+          retention-days: 14
+          overwrite: true
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
@@ -517,6 +625,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          find release-assets -maxdepth 1 -type f \( \
+            -name 'Windows7-Compatibility.md' -o \
+            -name 'Windows7-Legacy-Compatibility.md' -o \
+            -name 'windows7-compatibility.json' -o \
+            -name 'windows7-legacy-compatibility.json' \
+          \) -delete
           find release-assets -maxdepth 2 -type f -print
           RELEASE_VERSION="${APP_VERSION}+${GITHUB_RUN_NUMBER}"
           TAG="v${RELEASE_VERSION}"
@@ -533,9 +647,11 @@ jobs:
           - MoneyFly-macOS-universal.pkg: macOS package installer
           - MoneyFly-Windows-x64-Setup.exe: Windows 10/11 x64 installer
           - MoneyFly-Windows-x64-Portable.zip: Windows 10/11 x64 portable package
+          - MoneyFly-Windows7-x64-Setup.exe: optional Windows 7 legacy installer, only produced when workflow_dispatch build_windows7 passes
+          - MoneyFly-Windows7-x64-Portable.zip: optional Windows 7 legacy portable package, only produced when workflow_dispatch build_windows7 passes
           - SHA256SUMS.txt: checksums for all release assets
 
-          Note: Windows 7/8 are not supported by the current Flutter 3.38.5 desktop toolchain.
+          Note: Windows 7/8 are not supported by the current Flutter 3.38.5 desktop toolchain. The Windows 7 legacy package is gated by static compatibility checks and still requires runtime verification in a real Windows 7 SP1 VM.
           EOF
           python3 - <<'PY'
           import os
