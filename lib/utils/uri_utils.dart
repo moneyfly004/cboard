@@ -8,7 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 abstract class UriUtils {
   static final loggy = Loggy<InfraLogger>("UriUtils");
 
-  static Future<bool> tryShareOrLaunchFile(Uri uri, {Uri? fileOrDir}) async {
+  static Future<bool> tryShareOrLaunchFile(Uri uri, {Uri? fileOrDir}) {
     if (Platform.isWindows || Platform.isLinux) {
       return tryLaunch(fileOrDir ?? uri);
     }
@@ -66,6 +66,10 @@ abstract class UriUtils {
   }
 
   static Future<bool> tryShareFile(Uri uri, {String? mimeType}) async {
+    if (Platform.isWindows || Platform.isLinux) {
+      return tryLaunch(uri);
+    }
+
     try {
       loggy.debug("sharing [$uri]");
       final file = XFile(uri.path, mimeType: mimeType);

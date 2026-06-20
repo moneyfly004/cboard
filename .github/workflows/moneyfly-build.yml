@@ -505,7 +505,28 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.build_windows7
         shell: pwsh
         run: |
+          python scripts\prepare_windows7_legacy_plugins.py
+          if (Test-Path "build\windows") {
+            Remove-Item -Recurse -Force "build\windows"
+          }
+          $env:MONEYFLY_WINDOWS7_LEGACY = "1"
+          flutter build windows `
+            --release `
+            --no-pub `
+            --target "${env:BUILD_TARGET}" `
+            --build-name="${env:APP_VERSION}" `
+            --build-number="${env:GITHUB_RUN_NUMBER}" `
+            --split-debug-info=build\debug-info\windows7 `
+            --dart-define="moneyfly_build_number=${env:GITHUB_RUN_NUMBER}" `
+            --dart-define=sentry_dsn=
+
           $releaseDir = "build\windows\x64\runner\Release"
+          if (Test-Path "$releaseDir\share_plus_plugin.dll") {
+            throw "Windows 7 legacy package still contains share_plus_plugin.dll."
+          }
+          if (Test-Path "$releaseDir\libcronet.dll") {
+            throw "Windows 7 legacy package still contains libcronet.dll."
+          }
           python scripts\check_windows7_compat.py `
             --release-dir "$releaseDir" `
             --manifest windows\runner\runner.exe.manifest `
