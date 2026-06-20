@@ -75,9 +75,18 @@ void main() {
     expect(repo.upsertedUrls, [accountUrl]);
   });
 
-  test('sync imports expired account subscription url to refresh local error config', () async {
+  test('sync removes account subscription profile when subscription is expired', () async {
     const expiredAccountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/expired-token';
-    final repo = _FakeProfileRepository([]);
+    final repo = _FakeProfileRepository([
+      RemoteProfileEntity(
+        id: 'old-expired-account',
+        active: true,
+        name: AccountSubscriptionSync.accountProfileName,
+        url: expiredAccountUrl,
+        lastUpdate: DateTime(2026),
+        userOverride: const UserOverride(name: AccountSubscriptionSync.accountProfileName, updateInterval: 1),
+      ),
+    ]);
     final container = ProviderContainer(
       overrides: [profileRepositoryProvider.overrideWith((ref) => Future.value(repo))],
     );
@@ -92,11 +101,48 @@ void main() {
               packageName: 'Expired',
               universalUrl: expiredAccountUrl,
               status: 'expired',
+              remainingDays: -1,
             ),
           ),
         );
 
-    expect(repo.upsertedUrls, [expiredAccountUrl]);
+    expect(repo.deletedIds, ['old-expired-account']);
+    expect(repo.upsertedUrls, isEmpty);
+  });
+
+  test('sync removes account subscription profile when subscription is disabled but still has a url', () async {
+    const disabledAccountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/disabled-token';
+    final repo = _FakeProfileRepository([
+      RemoteProfileEntity(
+        id: 'old-disabled-account',
+        active: true,
+        name: AccountSubscriptionSync.accountProfileName,
+        url: disabledAccountUrl,
+        lastUpdate: DateTime(2026),
+        userOverride: const UserOverride(name: AccountSubscriptionSync.accountProfileName, updateInterval: 1),
+      ),
+    ]);
+    final container = ProviderContainer(
+      overrides: [profileRepositoryProvider.overrideWith((ref) => Future.value(repo))],
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(accountSubscriptionSyncProvider)
+        .sync(
+          const AccountDashboard(
+            subscription: AccountSubscription(
+              id: 1,
+              packageName: 'Disabled',
+              universalUrl: disabledAccountUrl,
+              status: 'disabled',
+              remainingDays: 30,
+            ),
+          ),
+        );
+
+    expect(repo.deletedIds, ['old-disabled-account']);
+    expect(repo.upsertedUrls, isEmpty);
   });
 }
 
