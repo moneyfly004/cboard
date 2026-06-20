@@ -120,6 +120,32 @@ void main() {
     expect(sync.clearCalls, 0);
     expect(preferences.getString('cboard_account_refresh_token'), 'invalid-refresh-token');
   });
+
+  test('silent subscription status refresh syncs active subscription from dashboard', () async {
+    const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
+    SharedPreferences.setMockInitialValues({
+      'cboard_account_access_token': 'fresh-access-token',
+      'cboard_account_refresh_token': 'fresh-refresh-token',
+      'cboard_account_user': jsonEncode(savedUser.toJson()),
+    });
+
+    final preferences = await SharedPreferences.getInstance();
+    final api = _RefreshingAccountApi();
+    final sync = _FakeSubscriptionSync();
+
+    final notifier = AccountNotifier(api, sync, preferences);
+    await pumpEventQueue();
+    api.reset();
+    sync.reset();
+
+    await notifier.refreshSubscriptionStatusSilently();
+
+    expect(api.dashboardTokens, ['fresh-access-token']);
+    expect(api.deviceTokens, isEmpty);
+    expect(sync.refreshActiveCalls, 1);
+    expect(sync.syncCalls, 0);
+    expect(notifier.state.authExpired, isFalse);
+  });
 }
 
 class _RefreshingAccountApi extends AccountApi {

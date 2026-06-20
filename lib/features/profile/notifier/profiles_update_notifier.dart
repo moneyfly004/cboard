@@ -3,6 +3,7 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/preferences/preferences_provider.dart';
+import 'package:hiddify/features/account/notifier/account_notifier.dart';
 import 'package:hiddify/features/profile/data/profile_data_providers.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
@@ -87,6 +88,8 @@ class ForegroundProfilesUpdateNotifier extends _$ForegroundProfilesUpdateNotifie
         return;
       }
       loggy.debug("${force ? "[FORCED] " : ""}running, previous run: [$previousRun]");
+
+      await ref.read(accountNotifierProvider.notifier).refreshSubscriptionStatusSilently();
 
       final remoteProfiles = await ref
           .read(profileRepositoryProvider)

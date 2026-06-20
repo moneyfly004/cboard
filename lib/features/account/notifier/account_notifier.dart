@@ -194,6 +194,16 @@ class AccountNotifier extends StateNotifier<AccountState> {
     });
   }
 
+  Future<void> refreshSubscriptionStatusSilently() async {
+    if (!_hasAuthCredentials) return;
+    await _runAccountRefresh(() async {
+      final dashboard = await _withAuthenticatedToken(_api.getDashboard);
+      state = state.copyWith(user: dashboard.user, dashboard: dashboard, authExpired: false);
+      await _persistAuth(state.token, state.refreshToken, dashboard.user);
+      await _subscriptionSync.refreshActiveSubscription(dashboard);
+    });
+  }
+
   Future<void> loadPublicData() async {
     await _run(() async {
       final results = await Future.wait<Object>([_api.getPackages(), _api.getPaymentMethods()]);
