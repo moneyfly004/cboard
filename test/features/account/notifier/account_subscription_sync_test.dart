@@ -33,7 +33,7 @@ void main() {
       name: 'VIP',
       url: 'https://dy.moneyfly.top/api/v1/subscriptions/universal/legacy-token',
       lastUpdate: DateTime(2026),
-      userOverride: const UserOverride(name: 'VIP', updateInterval: 1),
+      userOverride: const UserOverride(version: 1, name: 'VIP', updateInterval: 1),
     );
     final oldAccountProfile = RemoteProfileEntity(
       id: 'account',
@@ -41,7 +41,7 @@ void main() {
       name: AccountSubscriptionSync.accountProfileName,
       url: accountUrl,
       lastUpdate: DateTime(2026),
-      userOverride: const UserOverride(name: AccountSubscriptionSync.accountProfileName, updateInterval: 1),
+      userOverride: const UserOverride(version: 1, name: AccountSubscriptionSync.accountProfileName, updateInterval: 1),
     );
     final repo = _FakeProfileRepository([
       manualProfile,
@@ -69,10 +69,11 @@ void main() {
           ),
         );
 
-    expect(repo.deletedIds, unorderedEquals(['account', 'legacy-account']));
+    expect(repo.deletedIds, ['legacy-account']);
     expect(repo.profiles.map((profile) => profile.id), contains('manual'));
     expect(repo.profiles.map((profile) => profile.id), contains('manual-universal'));
     expect(repo.upsertedUrls, [accountUrl]);
+    expect(repo.upsertedUserOverrides, [AccountSubscriptionSync.accountProfileOverride]);
   });
 
   test('sync removes account subscription profile when subscription is expired', () async {
@@ -84,7 +85,11 @@ void main() {
         name: AccountSubscriptionSync.accountProfileName,
         url: expiredAccountUrl,
         lastUpdate: DateTime(2026),
-        userOverride: const UserOverride(name: AccountSubscriptionSync.accountProfileName, updateInterval: 1),
+        userOverride: const UserOverride(
+          version: 1,
+          name: AccountSubscriptionSync.accountProfileName,
+          updateInterval: 1,
+        ),
       ),
     ]);
     final container = ProviderContainer(
@@ -110,6 +115,44 @@ void main() {
     expect(repo.upsertedUrls, isEmpty);
   });
 
+  test('sync keeps user configured account subscription update interval', () async {
+    const accountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/account-token';
+    final repo = _FakeProfileRepository([
+      RemoteProfileEntity(
+        id: 'account',
+        active: true,
+        name: AccountSubscriptionSync.accountProfileName,
+        url: accountUrl,
+        lastUpdate: DateTime(2026),
+        userOverride: const UserOverride(name: AccountSubscriptionSync.accountProfileName, updateInterval: 12),
+      ),
+    ]);
+    final container = ProviderContainer(
+      overrides: [profileRepositoryProvider.overrideWith((ref) => Future.value(repo))],
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(accountSubscriptionSyncProvider)
+        .sync(
+          const AccountDashboard(
+            subscription: AccountSubscription(
+              id: 1,
+              packageName: 'VIP',
+              universalUrl: accountUrl,
+              status: 'active',
+              remainingDays: 30,
+              isActive: true,
+            ),
+          ),
+        );
+
+    expect(repo.deletedIds, isEmpty);
+    expect(repo.upsertedUserOverrides, [
+      const UserOverride(name: AccountSubscriptionSync.accountProfileName, updateInterval: 12),
+    ]);
+  });
+
   test('sync removes account subscription profile when subscription is disabled but still has a url', () async {
     const disabledAccountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/disabled-token';
     final repo = _FakeProfileRepository([
@@ -119,7 +162,11 @@ void main() {
         name: AccountSubscriptionSync.accountProfileName,
         url: disabledAccountUrl,
         lastUpdate: DateTime(2026),
-        userOverride: const UserOverride(name: AccountSubscriptionSync.accountProfileName, updateInterval: 1),
+        userOverride: const UserOverride(
+          version: 1,
+          name: AccountSubscriptionSync.accountProfileName,
+          updateInterval: 1,
+        ),
       ),
     ]);
     final container = ProviderContainer(
@@ -152,6 +199,7 @@ class _FakeProfileRepository implements ProfileRepository {
   final List<ProfileEntity> profiles;
   final List<String> deletedIds = [];
   final List<String> upsertedUrls = [];
+  final List<UserOverride?> upsertedUserOverrides = [];
 
   @override
   TaskEither<ProfileFailure, Unit> deleteById(String id, bool isActive) {
@@ -179,6 +227,7 @@ class _FakeProfileRepository implements ProfileRepository {
   }) {
     return TaskEither.tryCatch(() async {
       upsertedUrls.add(url);
+      upsertedUserOverrides.add(userOverride);
       profiles.add(
         RemoteProfileEntity(
           id: 'new-account',

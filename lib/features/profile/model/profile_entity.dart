@@ -68,7 +68,7 @@ class SubscriptionInfo with _$SubscriptionInfo {
   double get remainingRatio => min(remaining.inDays, 30) / 30;
 }
 
-const int latestUserOverrideVersion = 1;
+const int latestUserOverrideVersion = 2;
 
 @freezed
 abstract class UserOverride with _$UserOverride {
@@ -100,7 +100,10 @@ abstract class UserOverride with _$UserOverride {
     final version = json['version'] as int? ?? 1;
 
     if (version < 2) {
-      // Migration 1 to 2
+      if (json['name'] == 'MoneyFly 账户订阅' && json['updateInterval'] == 1) {
+        json['updateInterval'] = null;
+        json['isAutoUpdateDisable'] = true;
+      }
     }
     json['version'] = latestUserOverrideVersion;
     return json;

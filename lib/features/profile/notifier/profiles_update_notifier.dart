@@ -1,4 +1,3 @@
-import 'package:dartx/dartx.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
@@ -18,14 +17,14 @@ typedef ProfileUpdateStatus = ({String name, bool success});
 @Riverpod(keepAlive: true)
 class ForegroundProfilesUpdateNotifier extends _$ForegroundProfilesUpdateNotifier with AppLogger {
   static const prefKey = "profiles_update_check";
-  static const interval = Duration(minutes: 15);
+  static const workerInterval = Duration(minutes: 15);
 
   @override
   Stream<ProfileUpdateStatus?> build() {
     var cycleCount = 0;
     _scheduler = NeatPeriodicTaskScheduler(
       name: 'profiles update worker',
-      interval: interval,
+      interval: workerInterval,
       timeout: const Duration(minutes: 5),
       task: () async {
         loggy.debug("cycle [${cycleCount++}]");
@@ -48,23 +47,21 @@ class ForegroundProfilesUpdateNotifier extends _$ForegroundProfilesUpdateNotifie
   }
 
   NeatPeriodicTaskScheduler? _scheduler;
-  bool _forceNextRun = false;
+  ProfileUpdateMode? _pendingMode;
   Future<void>? _runningUpdate;
+  bool _startupUpdateHandled = false;
 
-  Future<void> trigger() async {
-    loggy.debug("triggering update");
-    _forceNextRun = true;
-    if (_scheduler != null) {
-      await _scheduler?.trigger();
-    } else {
-      await updateProfiles();
-    }
+  Future<void> trigger({ProfileUpdateMode mode = ProfileUpdateMode.manual}) async {
+    loggy.debug("triggering update, mode: [$mode]");
+    await updateProfiles(mode: mode);
   }
 
   @visibleForTesting
-  Future<void> updateProfiles() async {
+  Future<void> updateProfiles({ProfileUpdateMode mode = ProfileUpdateMode.automatic}) async {
+    _queueMode(mode);
     if (_runningUpdate case final running?) return running;
-    final run = _updateProfiles();
+
+    final run = _drainUpdateQueue();
     _runningUpdate = run;
     try {
       await run;
@@ -73,23 +70,48 @@ class ForegroundProfilesUpdateNotifier extends _$ForegroundProfilesUpdateNotifie
     }
   }
 
-  Future<void> _updateProfiles() async {
-    var force = false;
-    if (_forceNextRun) {
-      force = true;
-      _forceNextRun = false;
+  Future<void> _drainUpdateQueue() async {
+    while (true) {
+      final mode = _pendingMode;
+      if (mode == null) return;
+      _pendingMode = null;
+      await _updateProfiles(mode);
+    }
+  }
+
+  void _queueMode(ProfileUpdateMode mode) {
+    _pendingMode = _higherPriorityMode(_pendingMode, mode);
+  }
+
+  static ProfileUpdateMode _higherPriorityMode(ProfileUpdateMode? current, ProfileUpdateMode next) {
+    if (current == null || next.priority > current.priority) {
+      return next;
+    }
+    return current;
+  }
+
+  Future<void> _updateProfiles(ProfileUpdateMode mode) async {
+    final force = mode == ProfileUpdateMode.manual || mode == ProfileUpdateMode.startup;
+    final refreshAccount = mode == ProfileUpdateMode.manual || mode == ProfileUpdateMode.startup;
+    if (force) {
+      _startupUpdateHandled = true;
+    } else if (!_startupUpdateHandled) {
+      loggy.debug("skipping automatic update before startup refresh");
+      return;
     }
 
     try {
       final previousRun = DateTime.tryParse(ref.read(sharedPreferencesProvider).requireValue.getString(prefKey) ?? "");
 
-      if (!force && previousRun != null && previousRun.add(interval) > DateTime.now()) {
+      if (!force && previousRun != null && previousRun.add(workerInterval).isAfter(DateTime.now())) {
         loggy.debug("too soon! previous run: [$previousRun]");
         return;
       }
-      loggy.debug("${force ? "[FORCED] " : ""}running, previous run: [$previousRun]");
+      loggy.debug("running [$mode], previous run: [$previousRun]");
 
-      await ref.read(accountNotifierProvider.notifier).refreshSubscriptionStatusSilently();
+      if (refreshAccount) {
+        await ref.read(accountNotifierProvider.notifier).refreshSubscriptionStatusSilently();
+      }
 
       final remoteProfiles = await ref
           .read(profileRepositoryProvider)
@@ -104,8 +126,7 @@ class ForegroundProfilesUpdateNotifier extends _$ForegroundProfilesUpdateNotifie
           .first;
 
       await for (final profile in Stream.fromIterable(remoteProfiles)) {
-        final updateInterval = profile.options?.updateInterval;
-        if (force || updateInterval != null && updateInterval <= DateTime.now().difference(profile.lastUpdate)) {
+        if (_shouldUpdateProfile(profile: profile, mode: mode, now: DateTime.now())) {
           final t = ref.read(translationsProvider).requireValue;
           await ref
               .read(profileRepositoryProvider)
@@ -128,7 +149,7 @@ class ForegroundProfilesUpdateNotifier extends _$ForegroundProfilesUpdateNotifie
               .run();
         } else {
           loggy.debug(
-            "skipping profile [${profile.id}] update. last successful update: [${profile.lastUpdate}] - interval: [${profile.options?.updateInterval}]",
+            "skipping profile [${profile.id}] update. last successful update: [${profile.lastUpdate}] - interval: [${profile.userOverride?.updateInterval}]",
           );
         }
       }
@@ -136,4 +157,42 @@ class ForegroundProfilesUpdateNotifier extends _$ForegroundProfilesUpdateNotifie
       await ref.read(sharedPreferencesProvider).requireValue.setString(prefKey, DateTime.now().toIso8601String());
     }
   }
+
+  @visibleForTesting
+  static bool shouldUpdateProfile({
+    required RemoteProfileEntity profile,
+    required ProfileUpdateMode mode,
+    required DateTime now,
+  }) {
+    return _shouldUpdateProfile(profile: profile, mode: mode, now: now);
+  }
+
+  static bool _shouldUpdateProfile({
+    required RemoteProfileEntity profile,
+    required ProfileUpdateMode mode,
+    required DateTime now,
+  }) {
+    if (mode == ProfileUpdateMode.manual || mode == ProfileUpdateMode.startup) {
+      return true;
+    }
+    if (profile.userOverride?.isAutoUpdateDisable ?? false) {
+      return false;
+    }
+    final updateIntervalHours = profile.userOverride?.updateInterval;
+    if (updateIntervalHours == null || updateIntervalHours <= 0) {
+      return false;
+    }
+    final updateInterval = Duration(hours: updateIntervalHours);
+    return updateInterval <= now.difference(profile.lastUpdate);
+  }
+}
+
+enum ProfileUpdateMode {
+  automatic(0),
+  startup(1),
+  manual(2);
+
+  const ProfileUpdateMode(this.priority);
+
+  final int priority;
 }

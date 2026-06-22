@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:accessibility_tools/accessibility_tools.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/foundation.dart';
@@ -47,14 +45,6 @@ class App extends HookConsumerWidget with WidgetsBindingObserver, PresLogger {
   void onResume(WidgetRef ref) {
     // if (PlatformUtils.isDesktop) return;
     ref.read(hiddifyCoreServiceProvider).init();
-    unawaited(
-      ref.read(foregroundProfilesUpdateNotifierProvider.notifier).trigger().catchError((
-        Object error,
-        StackTrace stackTrace,
-      ) {
-        loggy.warning("resume profile refresh failed", error, stackTrace);
-      }),
-    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (isOnPauseCalled && PlatformUtils.isAndroid) ref.invalidate(perAppProxyServiceProvider);
@@ -92,7 +82,7 @@ class App extends HookConsumerWidget with WidgetsBindingObserver, PresLogger {
           loggy.warning("background update check failed", error, stackTrace);
         }
         try {
-          await ref.read(foregroundProfilesUpdateNotifierProvider.notifier).trigger();
+          await ref.read(foregroundProfilesUpdateNotifierProvider.notifier).trigger(mode: ProfileUpdateMode.startup);
         } catch (error, stackTrace) {
           loggy.warning("startup profile refresh failed", error, stackTrace);
         }

@@ -14,6 +14,7 @@ class AccountSubscriptionSync {
 
   final Ref _ref;
   static const accountProfileName = 'MoneyFly 账户订阅';
+  static const accountProfileOverride = UserOverride(name: accountProfileName, isAutoUpdateDisable: true);
 
   Future<void> clearAccountSubscriptions() async {
     final repo = await _ref.read(profileRepositoryProvider.future);
@@ -24,13 +25,14 @@ class AccountSubscriptionSync {
     final subscription = dashboard?.subscription;
     final url = subscription?.importUrl ?? '';
     final repo = await _ref.read(profileRepositoryProvider.future);
-    await _deleteAccountProfiles(repo, activeUrl: url);
-    if (subscription == null || !subscription.canImport || !_isUniversalSubscriptionUrl(url)) {
+    final canImport = subscription != null && subscription.canImport && _isUniversalSubscriptionUrl(url);
+    final existingAccountProfile = await _deleteAccountProfiles(repo, activeUrl: url, keepActiveUrl: canImport);
+    if (!canImport) {
       return;
     }
 
     await repo
-        .upsertRemote(url, userOverride: const UserOverride(name: accountProfileName, updateInterval: 1), active: true)
+        .upsertRemote(url, userOverride: _accountUserOverride(existingAccountProfile), active: true)
         .getOrElse((failure) => throw failure)
         .run();
   }
@@ -39,16 +41,13 @@ class AccountSubscriptionSync {
     final repo = await _ref.read(profileRepositoryProvider.future);
     final subscription = dashboard?.subscription;
     final activeUrl = subscription?.importUrl ?? '';
-    await _deleteAccountProfiles(repo, activeUrl: activeUrl);
-    if (subscription == null || !subscription.canImport || !_isUniversalSubscriptionUrl(activeUrl)) {
+    final canImport = subscription != null && subscription.canImport && _isUniversalSubscriptionUrl(activeUrl);
+    final existingAccountProfile = await _deleteAccountProfiles(repo, activeUrl: activeUrl, keepActiveUrl: canImport);
+    if (!canImport) {
       return;
     }
     await repo
-        .upsertRemote(
-          activeUrl,
-          userOverride: const UserOverride(name: accountProfileName, updateInterval: 1),
-          active: true,
-        )
+        .upsertRemote(activeUrl, userOverride: _accountUserOverride(existingAccountProfile), active: true)
         .getOrElse((failure) => throw failure)
         .run();
   }
@@ -57,14 +56,38 @@ class AccountSubscriptionSync {
     return url.contains('/subscriptions/universal/');
   }
 
-  Future<void> _deleteAccountProfiles(ProfileRepository repo, {String? activeUrl}) async {
+  Future<RemoteProfileEntity?> _deleteAccountProfiles(
+    ProfileRepository repo, {
+    String? activeUrl,
+    bool keepActiveUrl = false,
+  }) async {
     final profiles = await repo
         .watchAll(sortMode: SortMode.descending)
         .map((event) => event.getOrElse((failure) => throw failure))
         .first;
+    RemoteProfileEntity? keptAccountProfile;
     for (final profile in profiles.where((profile) => _isAccountProfile(profile, activeUrl: activeUrl))) {
+      if (keepActiveUrl &&
+          activeUrl != null &&
+          activeUrl.isNotEmpty &&
+          profile is RemoteProfileEntity &&
+          profile.url == activeUrl) {
+        keptAccountProfile = profile;
+        continue;
+      }
       await repo.deleteById(profile.id, profile.active).getOrElse((failure) => throw failure).run();
     }
+    return keptAccountProfile;
+  }
+
+  UserOverride _accountUserOverride(RemoteProfileEntity? existingProfile) {
+    final userOverride = existingProfile?.userOverride;
+    if (userOverride != null &&
+        userOverride.version >= 2 &&
+        (userOverride.updateInterval != null || userOverride.isAutoUpdateDisable)) {
+      return userOverride.copyWith(name: accountProfileName);
+    }
+    return accountProfileOverride;
   }
 
   bool _isAccountProfile(ProfileEntity profile, {String? activeUrl}) {
@@ -80,7 +103,7 @@ class AccountSubscriptionSync {
   }
 
   bool _isLegacyAccountProfile({required String name, required String url, required UserOverride? userOverride}) {
-    if (userOverride?.name != name || userOverride?.updateInterval != 1) {
+    if (userOverride?.name != name || !_hasLegacyAccountUpdateInterval(userOverride)) {
       return false;
     }
     final uri = Uri.tryParse(url);
@@ -88,6 +111,10 @@ class AccountSubscriptionSync {
         _isKnownAccountSubscriptionHost(uri.host) &&
         uri.pathSegments.contains('subscriptions') &&
         uri.pathSegments.contains('universal');
+  }
+
+  bool _hasLegacyAccountUpdateInterval(UserOverride? userOverride) {
+    return userOverride?.updateInterval == 1 || userOverride?.isAutoUpdateDisable == true;
   }
 
   bool _isKnownAccountSubscriptionHost(String host) {
