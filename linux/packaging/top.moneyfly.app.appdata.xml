@@ -1,48 +1,41 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Hiddify AppStream Metadata
-  Place this file at: linux/packaging/myappid.appdata.xml
+  MoneyFly AppStream Metadata
+  Place this file at: linux/packaging/top.moneyfly.app.appdata.xml
 -->
 <component type="desktop-application">
-  <id>app.hiddify.com</id>
+  <id>top.moneyfly.app</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
 
-  <name>Hiddify</name>
+  <name>MoneyFly</name>
   <summary>Modern Proxy and VPN Manager for Linux</summary>
 
-  <developer_name>Hiddify</developer_name>
-  <update_contact>linux@hiddify.com</update_contact>
+  <developer_name>MoneyFly</developer_name>
+  <update_contact>support@moneyfly.top</update_contact>
 
   <description>
     <p>
-      Hiddify is an advanced proxy and VPN client built for privacy and control. 
+      MoneyFly is an advanced proxy and VPN client built for privacy and control.
       It supports multiple backend protocols including V2Ray, Xray, Clash, and Sing-box, 
       providing flexibility and performance for all kinds of network configurations.
     </p>
     <p>
-      Designed with simplicity in mind, Hiddify helps users connect securely and 
+      Designed with simplicity in mind, MoneyFly helps users connect securely and
       manage complex proxy configurations through a clean graphical interface.
     </p>
   </description>
 
-  <screenshots>
-    <screenshot type="default">
-      <image>https://hiddify.com/assets/hiddify-next-mobile.svg</image>
-      <caption>Main Interface of Hiddify</caption>
-    </screenshot>
-  </screenshots>
+  <launchable type="desktop-id">moneyfly.desktop</launchable>
 
-  <launchable type="desktop-id">hiddify.desktop</launchable>
-
-  <icon type="stock">hiddify</icon>
+  <icon type="stock">moneyfly</icon>
 
   <categories>
     <category>Network</category>
   </categories>
 
   <keywords>
-    <keyword>Hiddify</keyword>
+    <keyword>MoneyFly</keyword>
     <keyword>Proxy</keyword>
     <keyword>VPN</keyword>
     <keyword>V2Ray</keyword>
@@ -53,6 +46,7 @@
   </keywords>
 
   <mime-types>
+    <mime-type>x-scheme-handler/moneyfly</mime-type>
     <mime-type>x-scheme-handler/hiddify</mime-type>
     <mime-type>x-scheme-handler/v2ray</mime-type>
     <mime-type>x-scheme-handler/v2rayn</mime-type>
@@ -62,26 +56,26 @@
     <mime-type>x-scheme-handler/sing-box</mime-type>
   </mime-types>
 
-  <url type="homepage">https://hiddify.com</url>
-  <url type="bugtracker">https://github.com/hiddify/hiddify-app/issues</url>
-  <url type="help">https://docs.hiddify.com</url>
+  <url type="homepage">https://dy.moneyfly.top</url>
+  <url type="bugtracker">https://github.com/moneyfly004/cboard/issues</url>
+  <url type="help">https://dy.moneyfly.top</url>
 
   <provides>
-    <binary>hiddify</binary>
+    <binary>moneyfly</binary>
   </provides>
 
   <releases>
     <release version="1.0.1" date="2026-06-22">
       <description>
-        <p>Initial Linux release of Hiddify with multi-protocol support and modern UI.</p>
+        <p>Initial Linux release of MoneyFly with multi-protocol support and modern UI.</p>
       </description>
     </release>
   </releases>
 
-  <translation type="gettext">hiddify</translation>
+  <translation type="gettext">moneyfly</translation>
 
   <custom>
-    <value key="PackageName">hiddify</value>
+    <value key="PackageName">moneyfly</value>
     <value key="Priority">optional</value>
     <value key="Section">x11</value>
     <value key="InstalledSize">6604</value>

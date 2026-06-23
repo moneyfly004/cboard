@@ -33,14 +33,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.13.4"
-  animated_notch_bottom_bar:
-    dependency: "direct main"
-    description:
-      name: animated_notch_bottom_bar
-      sha256: adc389a39e7b015883bba22de57e691eb6445c98c055b2438d6593a7f68017fe
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.3"
   ansicolor:
     dependency: transitive
     description:
@@ -129,14 +121,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.2"
-  bottom_navy_bar:
-    dependency: "direct main"
-    description:
-      name: bottom_navy_bar
-      sha256: ed54e0a18748106cc4d3648390bf94e88c0913db6bd3018dd30ab0810f0c26d6
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.1.0"
   build:
     dependency: transitive
     description:
@@ -290,14 +274,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.0"
-  combine:
-    dependency: "direct main"
-    description:
-      name: combine
-      sha256: c16464b55d140871fbab5b37909e1808c2f020e46f9ba7deca59d40faabb6008
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.5.7"
   convert:
     dependency: transitive
     description:
@@ -338,14 +314,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
-  cupertino_http:
-    dependency: "direct main"
-    description:
-      name: cupertino_http
-      sha256: "6fcf79586ad872ddcd6004d55c8c2aab3cdf0337436e8f99837b1b6c30665d0c"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.0.2"
   custom_lint_core:
     dependency: transitive
     description:
@@ -418,22 +386,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.0.2"
-  device_info_plus:
-    dependency: transitive
-    description:
-      name: device_info_plus
-      sha256: "0c6396126421b590089447154c5f98a5de423b70cfb15b1578fd018843ee6f53"
-      url: "https://pub.dev"
-    source: hosted
-    version: "11.4.0"
-  device_info_plus_platform_interface:
-    dependency: transitive
-    description:
-      name: device_info_plus_platform_interface
-      sha256: "0b04e02b30791224b31969eb1b50d723498f402971bff3630bca2ba839bd1ed2"
-      url: "https://pub.dev"
-    source: hosted
-    version: "7.0.2"
   dio:
     dependency: "direct main"
     description:
@@ -652,22 +604,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  flutter_loggy:
-    dependency: "direct main"
-    description:
-      name: flutter_loggy
-      sha256: f7640f2d06e64a6141b2210e18cac3146f30bcb4b92349da53f969f59b78c04b
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.0.3+1"
-  flutter_loggy_dio:
-    dependency: "direct main"
-    description:
-      name: flutter_loggy_dio
-      sha256: d17d26bb85667c14aefa6dce9b12bd2c1ae13cd75e89d25b0c799b063be55e3c
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.1.0"
   flutter_markdown_plus:
     dependency: "direct main"
     description:
@@ -902,14 +838,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.2"
-  http_profile:
-    dependency: transitive
-    description:
-      name: http_profile
-      sha256: "7e679e355b09aaee2ab5010915c932cce3f2d1c11c3b2dc177891687014ffa78"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.0"
   humanizer:
     dependency: "direct main"
     description:
@@ -1183,22 +1111,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.5.0"
-  objective_c:
-    dependency: transitive
-    description:
-      name: objective_c
-      sha256: "62e79ab8c3ed6f6a340ea50dd48d65898f5d70425d404f0d99411f6e56e04584"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.1.0"
-  os_detect:
-    dependency: transitive
-    description:
-      name: os_detect
-      sha256: "7d87c0dd98c6faf110d5aa498e9a6df02ffce4bb78cc9cfc8ad02929be9bb71f"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.0.3"
   package_config:
     dependency: transitive
     description:
@@ -1368,7 +1280,7 @@ packages:
     source: hosted
     version: "1.5.1"
   posix:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: posix
       sha256: a0117dc2167805aa9125b82eee515cc891819bac2f538c83646d355b16f58b9a
@@ -1679,14 +1591,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.1.2"
-  showcaseview:
-    dependency: "direct main"
-    description:
-      name: showcaseview
-      sha256: f236c1f44b286e1ba888f8701adca067af92c33e29ea937d0fe9b4a29d4cd41e
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.0"
   simple_icons:
     dependency: "direct main"
     description:
@@ -1940,14 +1844,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.2"
-  upgrader:
-    dependency: "direct main"
-    description:
-      name: upgrader
-      sha256: eb5a4888873d7998605306c4212491efdff8e59ee609d946dbcd6df83598d004
-      url: "https://pub.dev"
-    source: hosted
-    version: "11.3.1"
   url_launcher:
     dependency: "direct main"
     description:
@@ -2020,14 +1916,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.5.1"
-  vclibs:
-    dependency: "direct main"
-    description:
-      name: vclibs
-      sha256: "5dc5de54fabe27ad276898b7c04a56a4a3dd9834e479b9db5e04a9f3eb36790e"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.3"
   vector_graphics:
     dependency: "direct main"
     description:
@@ -2077,7 +1965,7 @@ packages:
     source: hosted
     version: "15.0.0"
   watcher:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: watcher
       sha256: "69da27e49efa56a15f8afe8f4438c4ec02eff0a117df1b22ea4aad194fe1c104"

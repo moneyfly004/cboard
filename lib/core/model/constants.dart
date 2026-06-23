@@ -9,9 +9,9 @@ abstract class Constants {
   static const githubReleasesApiUrl = "https://api.github.com/repos/moneyfly004/cboard/releases";
   static const githubLatestReleaseUrl = "https://github.com/moneyfly004/cboard/releases/latest";
   static const appCastUrl = "https://github.com/moneyfly004/cboard/releases/latest/download/appcast.xml";
-  static const telegramChannelUrl = "https://t.me/hiddify";
-  static const privacyPolicyUrl = "https://hiddify.com/privacy-policy/";
-  static const termsAndConditionsUrl = "https://hiddify.com/terms/";
+  static const telegramChannelUrl = "https://dy.moneyfly.top";
+  static const privacyPolicyUrl = "https://dy.moneyfly.top";
+  static const termsAndConditionsUrl = "https://dy.moneyfly.top";
   static const cfWarpPrivacyPolicy = "https://www.cloudflare.com/application/privacypolicy/";
   static const cfWarpTermsOfService = "https://www.cloudflare.com/application/terms/";
 }

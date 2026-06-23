@@ -14,7 +14,8 @@ struct _MyApplication
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
-#define ICON_PATH "./hiddify.png"
+#define MONEYFLY_ICON_PATH "./moneyfly.png"
+#define LEGACY_ICON_PATH "./hiddify.png"
 
 // Implements GApplication::activate.
 static void my_application_activate(GApplication *application)
@@ -30,7 +31,8 @@ static void my_application_activate(GApplication *application)
 
   GtkWindow *window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
-  gtk_window_set_icon_from_file(window, ICON_PATH, NULL);
+  const char *icon_path = g_file_test(MONEYFLY_ICON_PATH, G_FILE_TEST_EXISTS) ? MONEYFLY_ICON_PATH : LEGACY_ICON_PATH;
+  gtk_window_set_icon_from_file(window, icon_path, NULL);
 
   // Use a header bar when running in GNOME as this is the common style used
   // by applications and is the setup most users will be using (e.g. Ubuntu
@@ -55,13 +57,13 @@ static void my_application_activate(GApplication *application)
   {
     GtkHeaderBar *header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "Hiddify");
+    gtk_header_bar_set_title(header_bar, "MoneyFly");
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   }
   else
   {
-    gtk_window_set_title(window, "Hiddify");
+    gtk_window_set_title(window, "MoneyFly");
   }
 
   gtk_window_set_default_size(window, 1280, 720);

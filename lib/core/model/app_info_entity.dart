@@ -17,7 +17,7 @@ class AppInfoEntity with _$AppInfoEntity {
     required Environment environment,
   }) = _AppInfoEntity;
 
-  String get userAgent => "HiddifyNext/$version ($operatingSystem) like ClashMeta v2ray sing-box";
+  String get userAgent => "MoneyFly/$version ($operatingSystem) like ClashMeta v2ray sing-box";
 
   String get presentVersion {
     final label = buildNumber.isEmpty ? version : "$version ($buildNumber)";

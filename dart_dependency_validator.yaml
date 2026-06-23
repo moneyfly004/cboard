@@ -1,0 +1,7 @@
+ignore:
+  # Used by generated JSON models through annotations that the validator cannot always resolve.
+  - json_annotation
+  # Bundles sqlite3 dynamic libraries for Drift on desktop/mobile at runtime.
+  - sqlite3_flutter_libs
+  # Intentionally pinned for the core TLS certificate helpers.
+  - basic_utils
