@@ -82,7 +82,7 @@ class App extends HookConsumerWidget with WidgetsBindingObserver, PresLogger {
           loggy.warning("background update check failed", error, stackTrace);
         }
         try {
-          await ref.read(foregroundProfilesUpdateNotifierProvider.notifier).trigger(mode: ProfileUpdateMode.startup);
+          await ref.read(foregroundProfilesUpdateNotifierProvider.notifier).triggerStartupRefresh();
         } catch (error, stackTrace) {
           loggy.warning("startup profile refresh failed", error, stackTrace);
         }

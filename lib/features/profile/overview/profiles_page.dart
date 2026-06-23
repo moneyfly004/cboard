@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/failures.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
+import 'package:hiddify/core/widget/responsive_page.dart';
 import 'package:hiddify/features/account/notifier/account_notifier.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
@@ -48,14 +49,56 @@ class ProfilesPage extends HookConsumerWidget {
         icon: const Icon(Icons.cloud_sync_rounded),
       ),
       body: asyncProfiles.when(
-        data: (data) => ListView.separated(
-          padding: const EdgeInsets.all(12).copyWith(bottom: 84),
-          separatorBuilder: (context, index) => const Gap(12),
-          itemBuilder: (context, index) => ProfileTile(profile: data[index]),
-          itemCount: data.length,
+        data: (data) {
+          if (data.isEmpty) {
+            return _ProfilesStateCard(icon: Icons.view_list_outlined, message: t.common.empty);
+          }
+          return ResponsivePage(
+            maxWidth: 760,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+            child: ListView.separated(
+              separatorBuilder: (context, index) => const Gap(12),
+              itemBuilder: (context, index) => ProfileTile(profile: data[index]),
+              itemCount: data.length,
+            ),
+          );
+        },
+        loading: () => const _ProfilesStateCard.loading(),
+        error: (error, stackTrace) =>
+            _ProfilesStateCard(icon: Icons.error_outline_rounded, message: t.presentShortError(error)),
+      ),
+    );
+  }
+}
+
+class _ProfilesStateCard extends StatelessWidget {
+  const _ProfilesStateCard({required this.icon, required this.message});
+  const _ProfilesStateCard.loading() : icon = null, message = null;
+
+  final IconData? icon;
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ResponsivePage(
+      maxWidth: 520,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon == null)
+                const CircularProgressIndicator()
+              else ...[
+                Icon(icon, size: 34, color: theme.colorScheme.primary),
+                const Gap(12),
+                Text(message!, textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
+              ],
+            ],
+          ),
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Text(t.presentShortError(error)),
       ),
     );
   }

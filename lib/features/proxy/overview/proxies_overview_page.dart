@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/failures.dart';
+import 'package:hiddify/core/widget/responsive_page.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/features/proxy/widget/proxy_tile.dart';
 import 'package:hiddify/utils/utils.dart';
@@ -47,36 +48,83 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
       ),
       body: proxies.when(
         data: (group) => group != null
-            ? LayoutBuilder(
-                builder: (context, constraints) {
-                  final width = constraints.maxWidth;
-                  final crossAxisCount = PlatformUtils.isMobile && width < 600 ? 1 : max(1, (width / 268).floor());
-                  return GridView.builder(
-                    padding: const EdgeInsets.only(bottom: 86),
-                    itemCount: group.items.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      mainAxisExtent: 72,
-                    ),
-                    itemBuilder: (context, index) {
-                      final proxy = group.items[index];
-                      return ProxyTile(
-                        proxy,
-                        selected: group.selected == proxy.tag,
-                        onTap: () async {
-                          await ref.read(proxiesOverviewNotifierProvider.notifier).changeProxy(group.tag, proxy.tag);
-                          // if (selectActiveProxyMutation.state.isInProgress) return;
-                          // selectActiveProxyMutation.setFuture(
-                          // );
-                        },
-                      );
-                    },
-                  );
-                },
+            ? ResponsivePage(
+                maxWidth: 1180,
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (group.items.isEmpty) {
+                      return _ProxyStateCard(icon: Icons.hub_outlined, message: t.pages.proxies.empty);
+                    }
+                    final width = constraints.maxWidth;
+                    final crossAxisCount = PlatformUtils.isMobile && width < 600 ? 1 : max(1, (width / 292).floor());
+                    return GridView.builder(
+                      itemCount: group.items.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        mainAxisExtent: 78,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                      ),
+                      itemBuilder: (context, index) {
+                        final proxy = group.items[index];
+                        return Card(
+                          clipBehavior: Clip.antiAlias,
+                          child: ProxyTile(
+                            proxy,
+                            selected: group.selected == proxy.tag,
+                            onTap: () async {
+                              await ref
+                                  .read(proxiesOverviewNotifierProvider.notifier)
+                                  .changeProxy(group.tag, proxy.tag);
+                              // if (selectActiveProxyMutation.state.isInProgress) return;
+                              // selectActiveProxyMutation.setFuture(
+                              // );
+                            },
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
               )
-            : Center(child: Text(t.pages.proxies.empty)),
-        error: (error, stackTrace) => Center(child: Text(t.presentShortError(error))),
-        loading: () => const Center(child: CircularProgressIndicator()),
+            : _ProxyStateCard(icon: Icons.hub_outlined, message: t.pages.proxies.empty),
+        error: (error, stackTrace) =>
+            _ProxyStateCard(icon: Icons.error_outline_rounded, message: t.presentShortError(error)),
+        loading: () => const _ProxyStateCard.loading(),
+      ),
+    );
+  }
+}
+
+class _ProxyStateCard extends StatelessWidget {
+  const _ProxyStateCard({required this.icon, required this.message});
+  const _ProxyStateCard.loading() : icon = null, message = null;
+
+  final IconData? icon;
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ResponsivePage(
+      maxWidth: 520,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon == null)
+                const CircularProgressIndicator()
+              else ...[
+                Icon(icon, size: 34, color: theme.colorScheme.primary),
+                const Gap(12),
+                Text(message!, textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

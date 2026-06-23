@@ -7,7 +7,9 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/failures.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/widget/adaptive_icon.dart';
+import 'package:hiddify/core/widget/responsive_page.dart';
 import 'package:hiddify/features/log/data/log_data_providers.dart';
+import 'package:hiddify/features/log/model/log_entity.dart';
 import 'package:hiddify/features/log/model/log_level.dart';
 import 'package:hiddify/features/log/overview/logs_overview_notifier.dart';
 import 'package:hiddify/utils/utils.dart';
@@ -96,34 +98,46 @@ class LogsPage extends HookConsumerWidget with PresLogger {
                   //   forceElevated: innerBoxIsScrolled,
                   // ),
                   SliverPinnedHeader(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        child: Row(
-                          children: [
-                            Flexible(
-                              child: TextFormField(
-                                controller: filterController,
-                                onChanged: notifier.filterMessage,
-                                decoration: InputDecoration(isDense: true, hintText: t.common.filter),
-                              ),
-                            ),
-                            const Gap(16),
-                            DropdownButton<Option<LogLevel>>(
-                              value: optionOf(state.levelFilter),
-                              onChanged: (v) {
-                                if (v == null) return;
-                                notifier.filterLevel(v.toNullable());
-                              },
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              borderRadius: BorderRadius.circular(4),
-                              items: [
-                                DropdownMenuItem(value: none(), child: Text(t.common.all)),
-                                ...LogLevel.choices.map((e) => DropdownMenuItem(value: some(e), child: Text(e.name))),
+                    child: Material(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      child: ResponsivePage(
+                        maxWidth: 1080,
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                        child: Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: TextFormField(
+                                    controller: filterController,
+                                    onChanged: notifier.filterMessage,
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      hintText: t.common.filter,
+                                      prefixIcon: const Icon(Icons.search_rounded),
+                                    ),
+                                  ),
+                                ),
+                                const Gap(12),
+                                DropdownButton<Option<LogLevel>>(
+                                  value: optionOf(state.levelFilter),
+                                  onChanged: (v) {
+                                    if (v == null) return;
+                                    notifier.filterLevel(v.toNullable());
+                                  },
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  borderRadius: BorderRadius.circular(12),
+                                  items: [
+                                    DropdownMenuItem(value: none(), child: Text(t.common.all)),
+                                    ...LogLevel.choices.map(
+                                      (e) => DropdownMenuItem(value: some(e), child: Text(e.name.toUpperCase())),
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -140,42 +154,29 @@ class LogsPage extends HookConsumerWidget with PresLogger {
               reverse: true,
               slivers: <Widget>[
                 switch (state.logs) {
-                  AsyncData(value: final logs) => SliverList.builder(
-                    itemCount: logs.length,
-                    itemBuilder: (context, index) {
-                      final log = logs[index];
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (log.level != null)
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        log.level!.name.toUpperCase(),
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.labelMedium?.copyWith(color: log.level!.color),
-                                      ),
-                                      if (log.time != null)
-                                        Text(log.time!.toString(), style: Theme.of(context).textTheme.labelSmall),
-                                    ],
-                                  ),
-                                Text(extractMessage(log.message), style: Theme.of(context).textTheme.bodySmall),
-                              ],
+                  AsyncData(value: final logs) =>
+                    logs.isEmpty
+                        ? SliverResponsivePage(
+                            maxWidth: 520,
+                            padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                            sliver: SliverToBoxAdapter(
+                              child: Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                                  child: Text(t.common.empty, textAlign: TextAlign.center),
+                                ),
+                              ),
+                            ),
+                          )
+                        : SliverResponsivePage(
+                            maxWidth: 1080,
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                            sliver: SliverList.separated(
+                              itemCount: logs.length,
+                              separatorBuilder: (context, index) => const Gap(8),
+                              itemBuilder: (context, index) => _LogRow(log: logs[index]),
                             ),
                           ),
-                          if (index != 0) const Divider(indent: 16, endIndent: 16, height: 4),
-                        ],
-                      );
-                    },
-                  ),
                   AsyncError(:final error) => SliverErrorBodyPlaceholder(t.presentShortError(error)),
                   _ => const SliverLoadingBodyPlaceholder(),
                 },
@@ -183,6 +184,50 @@ class LogsPage extends HookConsumerWidget with PresLogger {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _LogRow extends StatelessWidget {
+  const _LogRow({required this.log});
+
+  final LogEntity log;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final levelColor = log.level?.color ?? theme.colorScheme.onSurfaceVariant;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(color: levelColor, shape: BoxShape.circle),
+                ),
+                const Gap(8),
+                Text(
+                  log.level?.name.toUpperCase() ?? 'LOG',
+                  style: theme.textTheme.labelMedium?.copyWith(color: levelColor, fontWeight: FontWeight.w700),
+                ),
+                const Spacer(),
+                if (log.time != null)
+                  Text(
+                    log.time!.toString(),
+                    style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+              ],
+            ),
+            const Gap(6),
+            SelectableText(extractMessage(log.message), style: theme.textTheme.bodySmall),
+          ],
         ),
       ),
     );

@@ -58,7 +58,7 @@ class ConnectionButton extends HookConsumerWidget {
     //   //   },
     //   // );
 
-    const buttonTheme = ConnectionButtonTheme.light;
+    final buttonTheme = Theme.of(context).extension<ConnectionButtonTheme>() ?? ConnectionButtonTheme.light;
 
     //   // return CircleDesignWidget(
     //   //   onTap: switch (connectionStatus) {

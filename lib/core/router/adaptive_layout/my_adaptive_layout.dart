@@ -63,6 +63,9 @@ class MyAdaptiveLayout extends HookConsumerWidget {
                   FocusScope(
                     node: navScopeNode,
                     child: NavigationRail(
+                      minWidth: 76,
+                      minExtendedWidth: 224,
+                      groupAlignment: Breakpoint(context).isDesktop() ? -0.92 : -0.74,
                       extended: Breakpoint(context).isDesktop(),
                       destinations: _navRailDests(_actions(t, showProfilesAction, isMobileBreakpoint)),
                       selectedIndex: navigationShell.currentIndex,

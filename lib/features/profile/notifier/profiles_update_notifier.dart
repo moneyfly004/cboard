@@ -56,6 +56,14 @@ class ForegroundProfilesUpdateNotifier extends _$ForegroundProfilesUpdateNotifie
     await updateProfiles(mode: mode);
   }
 
+  Future<void> triggerStartupRefresh() async {
+    if (_startupUpdateHandled) {
+      loggy.debug("startup profile refresh already completed");
+      return;
+    }
+    await updateProfiles(mode: ProfileUpdateMode.startup);
+  }
+
   @visibleForTesting
   Future<void> updateProfiles({ProfileUpdateMode mode = ProfileUpdateMode.automatic}) async {
     _queueMode(mode);
@@ -91,15 +99,21 @@ class ForegroundProfilesUpdateNotifier extends _$ForegroundProfilesUpdateNotifie
   }
 
   Future<void> _updateProfiles(ProfileUpdateMode mode) async {
-    final force = mode == ProfileUpdateMode.manual || mode == ProfileUpdateMode.startup;
-    final refreshAccount = mode == ProfileUpdateMode.manual || mode == ProfileUpdateMode.startup;
-    if (force) {
-      _startupUpdateHandled = true;
-    } else if (!_startupUpdateHandled) {
-      loggy.debug("skipping automatic update before startup refresh");
+    final isStartup =
+        mode == ProfileUpdateMode.startup || (mode == ProfileUpdateMode.automatic && !_startupUpdateHandled);
+    final profileUpdateMode = isStartup ? ProfileUpdateMode.startup : mode;
+    final force = mode == ProfileUpdateMode.manual || isStartup;
+    final refreshAccount = mode == ProfileUpdateMode.manual || isStartup;
+    final notify = mode == ProfileUpdateMode.manual;
+    if (mode == ProfileUpdateMode.startup && _startupUpdateHandled) {
+      loggy.debug("skipping duplicate startup profile refresh");
       return;
     }
+    if (mode == ProfileUpdateMode.automatic && isStartup) {
+      loggy.debug("running automatic update as startup recovery refresh");
+    }
 
+    var completed = false;
     try {
       final previousRun = DateTime.tryParse(ref.read(sharedPreferencesProvider).requireValue.getString(prefKey) ?? "");
 
@@ -126,24 +140,28 @@ class ForegroundProfilesUpdateNotifier extends _$ForegroundProfilesUpdateNotifie
           .first;
 
       await for (final profile in Stream.fromIterable(remoteProfiles)) {
-        if (_shouldUpdateProfile(profile: profile, mode: mode, now: DateTime.now())) {
-          final t = ref.read(translationsProvider).requireValue;
+        if (_shouldUpdateProfile(profile: profile, mode: profileUpdateMode, now: DateTime.now())) {
+          final t = notify ? ref.read(translationsProvider).requireValue : null;
           await ref
               .read(profileRepositoryProvider)
               .requireValue
               .upsertRemote(profile.url)
               .mapLeft((l) {
                 loggy.debug("error updating profile [${profile.id}]", l);
-                ref
-                    .read(inAppNotificationControllerProvider)
-                    .showErrorToast(t.pages.profiles.msg.update.failureNamed(name: profile.name));
+                if (t != null) {
+                  ref
+                      .read(inAppNotificationControllerProvider)
+                      .showErrorToast(t.pages.profiles.msg.update.failureNamed(name: profile.name));
+                }
                 state = AsyncData((name: profile.name, success: false));
               })
               .map((_) {
                 loggy.debug("profile [${profile.id}] updated successfully");
-                ref
-                    .read(inAppNotificationControllerProvider)
-                    .showSuccessToast(t.pages.profiles.msg.update.successNamed(name: profile.name));
+                if (t != null) {
+                  ref
+                      .read(inAppNotificationControllerProvider)
+                      .showSuccessToast(t.pages.profiles.msg.update.successNamed(name: profile.name));
+                }
                 state = AsyncData((name: profile.name, success: true));
               })
               .run();
@@ -153,8 +171,12 @@ class ForegroundProfilesUpdateNotifier extends _$ForegroundProfilesUpdateNotifie
           );
         }
       }
+      completed = true;
     } finally {
       await ref.read(sharedPreferencesProvider).requireValue.setString(prefKey, DateTime.now().toIso8601String());
+      if (completed && force) {
+        _startupUpdateHandled = true;
+      }
     }
   }
 
@@ -163,7 +185,11 @@ class ForegroundProfilesUpdateNotifier extends _$ForegroundProfilesUpdateNotifie
     required RemoteProfileEntity profile,
     required ProfileUpdateMode mode,
     required DateTime now,
+    bool startupUpdateHandled = true,
   }) {
+    if (!startupUpdateHandled && mode == ProfileUpdateMode.automatic) {
+      mode = ProfileUpdateMode.startup;
+    }
     return _shouldUpdateProfile(profile: profile, mode: mode, now: now);
   }
 

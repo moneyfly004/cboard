@@ -22,6 +22,7 @@ import 'package:hiddify/features/chain/notifier/chain_profile_notifier.dart';
 import 'package:hiddify/features/log/data/log_data_providers.dart';
 import 'package:hiddify/features/profile/data/profile_data_providers.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
+import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_notifier.dart';
 import 'package:hiddify/features/system_tray/notifier/system_tray_notifier.dart';
 import 'package:hiddify/features/window/notifier/window_notifier.dart';
@@ -88,6 +89,14 @@ Future<void> lazyBootstrap(WidgetsBinding widgetsBinding, Environment env) async
 
   await _init("translations", () => container.read(translationsProvider.future));
 
+  await _init("hiddify-core", () => container.read(hiddifyCoreServiceProvider).init());
+
+  await _safeInit(
+    "startup profile refresh",
+    () => container.read(foregroundProfilesUpdateNotifierProvider.notifier).triggerStartupRefresh(),
+    timeout: 30000,
+  );
+
   await _safeInit("active profile", () => container.read(activeProfileProvider.future), timeout: 1000);
   await _init(
     "chain profile extra security",
@@ -97,8 +106,6 @@ Future<void> lazyBootstrap(WidgetsBinding widgetsBinding, Environment env) async
     "chain profile unblocker",
     () => container.read(chainProfileNotifierProvider(ChainType.unblocker).future),
   );
-  await _init("hiddify-core", () => container.read(hiddifyCoreServiceProvider).init());
-
   // Eagerly listen to activeProxyNotifierProvider to force synchronous evaluation in microtasks,
   // avoiding lazy build-phase flushes and sibling dependency collisions on the Home page.
   container.listen(activeProxyNotifierProvider, (previous, next) {});

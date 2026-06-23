@@ -4,6 +4,7 @@ import 'package:gap/gap.dart';
 import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
+import 'package:hiddify/core/widget/responsive_page.dart';
 import 'package:hiddify/features/account/notifier/account_notifier.dart';
 import 'package:hiddify/features/home/widget/connection_button.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
@@ -79,16 +80,16 @@ class HomePage extends HookConsumerWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 600, // Set the maximum width here
-                ),
-                child: CustomScrollView(
-                  slivers: [
-                    // switch (activeProfile) {
-                    // AsyncData(value: final profile?) =>
-                    MultiSliver(
+            ResponsivePage(
+              maxWidth: 640,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: CustomScrollView(
+                slivers: [
+                  // switch (activeProfile) {
+                  // AsyncData(value: final profile?) =>
+                  SliverPadding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 108),
+                    sliver: MultiSliver(
                       children: [
                         // const Gap(100),
                         SliverToBoxAdapter(child: _AccountSubscriptionOverview(state: accountState)),
@@ -96,7 +97,7 @@ class HomePage extends HookConsumerWidget {
                           AsyncData(value: final profile?) => ProfileTile(
                             profile: profile,
                             isMain: true,
-                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            margin: const EdgeInsets.symmetric(vertical: 8),
                             color: Theme.of(context).colorScheme.surfaceContainer,
                           ),
                           _ => const Text(""),
@@ -114,41 +115,39 @@ class HomePage extends HookConsumerWidget {
                                 ),
                               ),
                               ActiveProxyFooter(),
-                              Gap(84),
                             ],
                           ),
                         ),
                       ],
                     ),
-                    // AsyncData() => switch (hasAnyProfile) {
-                    //     AsyncData(value: true) => const EmptyActiveProfileHomeBody(),
-                    //     _ => const EmptyProfilesHomeBody(),
-                    //   },
-                    // AsyncError(:final error) => SliverErrorBodyPlaceholder(t.presentShortError(error)),
-                    // _ => const SliverToBoxAdapter(),
-                    // },
-                  ],
-                ),
+                  ),
+                  // AsyncData() => switch (hasAnyProfile) {
+                  //     AsyncData(value: true) => const EmptyActiveProfileHomeBody(),
+                  //     _ => const EmptyProfilesHomeBody(),
+                  //   },
+                  // AsyncError(:final error) => SliverErrorBodyPlaceholder(t.presentShortError(error)),
+                  // _ => const SliverToBoxAdapter(),
+                  // },
+                ],
               ),
             ),
             if (ref.watch(hasAnyProfileProvider).value ?? false)
               Positioned(
                 right: 0,
                 left: 0,
-                bottom: 20,
+                bottom: 20 + MediaQuery.paddingOf(context).bottom,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Material(
                       color: theme.colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(20),
-                      elevation: 2,
+                      borderRadius: BorderRadius.circular(24),
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(24),
                         onTap: () => ref.read(bottomSheetsNotifierProvider.notifier).showQuickSettings(),
                         child: Container(
                           constraints: const BoxConstraints(minHeight: 44),
-                          padding: const EdgeInsetsDirectional.only(start: 18, end: 12),
+                          padding: const EdgeInsetsDirectional.only(start: 18, end: 14),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -179,69 +178,83 @@ class _AccountSubscriptionOverview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final subscription = state.dashboard?.subscription;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainer.withValues(alpha: .92),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.verified_user_rounded, color: theme.colorScheme.primary),
-                  const Gap(8),
-                  Expanded(child: Text(state.isAuthenticated ? '账户订阅' : '请先登录账户', style: theme.textTheme.titleMedium)),
-                  OutlinedButton.icon(
-                    onPressed: state.loading
-                        ? null
-                        : () => ref.read(accountNotifierProvider.notifier).syncSubscription(),
-                    icon: state.syncingSubscription
-                        ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.update_rounded),
-                    label: const Text('更新'),
+    return Card(
+      color: theme.colorScheme.surface.withValues(alpha: .94),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                ],
-              ),
-              const Gap(12),
-              Column(
-                children: [
-                  Row(
+                  child: Icon(Icons.verified_user_rounded, color: theme.colorScheme.onPrimaryContainer),
+                ),
+                const Gap(10),
+                Expanded(
+                  child: Text(
+                    state.isAuthenticated ? '账户订阅' : '请先登录账户',
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: state.loading ? null : () => ref.read(accountNotifierProvider.notifier).syncSubscription(),
+                  icon: state.syncingSubscription
+                      ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.update_rounded),
+                  label: const Text('更新'),
+                ),
+              ],
+            ),
+            const Gap(14),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 430;
+                final infoItems = [
+                  _InfoPill(label: '状态', value: _statusText(subscription?.status ?? 'none')),
+                  _InfoPill(label: '到期时间', value: subscription?.expireTime ?? '未开通'),
+                  _InfoPill(
+                    label: '在线设备',
+                    value:
+                        '${subscription?.onlineDevices ?? subscription?.currentDevices ?? 0}/${subscription?.deviceLimit ?? 0}',
+                  ),
+                  _InfoPill(label: '剩余天数', value: '${subscription?.remainingDays ?? 0} 天'),
+                ];
+                if (compact) {
+                  return Column(
                     children: [
-                      Expanded(
-                        child: _InfoPill(label: '状态', value: _statusText(subscription?.status ?? 'none')),
-                      ),
-                      const Gap(10),
-                      Expanded(
-                        child: _InfoPill(label: '到期时间', value: subscription?.expireTime ?? '未开通'),
-                      ),
+                      for (final item in infoItems) ...[item, if (item != infoItems.last) const Gap(10)],
                     ],
-                  ),
-                  const Gap(10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _InfoPill(
-                          label: '在线设备',
-                          value:
-                              '${subscription?.onlineDevices ?? subscription?.currentDevices ?? 0}/${subscription?.deviceLimit ?? 0}',
-                        ),
-                      ),
-                      const Gap(10),
-                      Expanded(
-                        child: _InfoPill(label: '剩余天数', value: '${subscription?.remainingDays ?? 0} 天'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
+                  );
+                }
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: infoItems[0]),
+                        const Gap(10),
+                        Expanded(child: infoItems[1]),
+                      ],
+                    ),
+                    const Gap(10),
+                    Row(
+                      children: [
+                        Expanded(child: infoItems[2]),
+                        const Gap(10),
+                        Expanded(child: infoItems[3]),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -259,18 +272,23 @@ class _InfoPill extends StatelessWidget {
     final theme = Theme.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .32),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .75)),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label, style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-            const Gap(2),
-            Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelLarge),
+            const Gap(3),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
           ],
         ),
       ),

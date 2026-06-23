@@ -39,6 +39,33 @@ void main() {
       );
     });
 
+    test('startup updates refresh even when the profile was just updated', () {
+      final remote = profile(age: const Duration(minutes: 5), userOverride: const UserOverride(updateInterval: 24));
+
+      expect(
+        ForegroundProfilesUpdateNotifier.shouldUpdateProfile(
+          profile: remote,
+          mode: ProfileUpdateMode.startup,
+          now: now,
+        ),
+        isTrue,
+      );
+    });
+
+    test('automatic update acts as startup recovery until startup refresh completes', () {
+      final remote = profile(age: const Duration(minutes: 5), userOverride: const UserOverride(updateInterval: 24));
+
+      expect(
+        ForegroundProfilesUpdateNotifier.shouldUpdateProfile(
+          profile: remote,
+          mode: ProfileUpdateMode.automatic,
+          now: now,
+          startupUpdateHandled: false,
+        ),
+        isTrue,
+      );
+    });
+
     test('automatic updates only use explicit user interval', () {
       expect(
         ForegroundProfilesUpdateNotifier.shouldUpdateProfile(
