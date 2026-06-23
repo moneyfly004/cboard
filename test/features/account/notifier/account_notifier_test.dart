@@ -38,6 +38,99 @@ void main() {
     expect(preferences.getString('cboard_account_refresh_token'), 'fresh-refresh-token');
   });
 
+  test('restore logs in with saved credentials and syncs fresh subscription', () async {
+    const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
+    SharedPreferences.setMockInitialValues({
+      'cboard_account_access_token': 'stale-access-token',
+      'cboard_account_refresh_token': 'stale-refresh-token',
+      'cboard_account_user': jsonEncode(savedUser.toJson()),
+      'cboard_account_email': 'saved@example.com',
+      'cboard_account_password': 'saved-password',
+    });
+
+    final preferences = await SharedPreferences.getInstance();
+    final api = _RefreshingAccountApi();
+    final sync = _FakeSubscriptionSync();
+
+    final notifier = AccountNotifier(api, sync, preferences);
+    await pumpEventQueue();
+
+    expect(api.loginEmails, ['saved@example.com']);
+    expect(api.loginPasswords, ['saved-password']);
+    expect(api.dashboardTokens, ['login-access-token']);
+    expect(api.refreshTokenCalls, 0);
+    expect(sync.syncCalls, 1);
+    expect(sync.clearCalls, 0);
+    expect(notifier.state.isAuthenticated, isTrue);
+    expect(notifier.state.savedEmail, 'saved@example.com');
+    expect(notifier.state.token, 'login-access-token');
+    expect(notifier.state.refreshToken, 'login-refresh-token');
+    expect(preferences.getString('cboard_account_access_token'), 'login-access-token');
+    expect(preferences.getString('cboard_account_refresh_token'), 'login-refresh-token');
+    expect(preferences.getString('cboard_account_email'), 'saved@example.com');
+    expect(preferences.getString('cboard_account_password'), 'saved-password');
+  });
+
+  test('manual logout clears saved credentials and local account subscription', () async {
+    const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
+    SharedPreferences.setMockInitialValues({
+      'cboard_account_access_token': 'fresh-access-token',
+      'cboard_account_refresh_token': 'fresh-refresh-token',
+      'cboard_account_user': jsonEncode(savedUser.toJson()),
+      'cboard_account_email': 'saved@example.com',
+      'cboard_account_password': 'saved-password',
+    });
+
+    final preferences = await SharedPreferences.getInstance();
+    final api = _RefreshingAccountApi();
+    final sync = _FakeSubscriptionSync();
+
+    final notifier = AccountNotifier(api, sync, preferences);
+    await pumpEventQueue();
+    sync.reset();
+
+    await notifier.logout();
+
+    expect(sync.clearCalls, 1);
+    expect(notifier.state.isAuthenticated, isFalse);
+    expect(notifier.state.hasSavedCredentials, isFalse);
+    expect(preferences.getString('cboard_account_access_token'), isNull);
+    expect(preferences.getString('cboard_account_refresh_token'), isNull);
+    expect(preferences.getString('cboard_account_user'), isNull);
+    expect(preferences.getString('cboard_account_email'), isNull);
+    expect(preferences.getString('cboard_account_password'), isNull);
+  });
+
+  test('auto-login failure clears local subscription but keeps saved credentials for retry', () async {
+    const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
+    SharedPreferences.setMockInitialValues({
+      'cboard_account_access_token': 'stale-access-token',
+      'cboard_account_refresh_token': 'stale-refresh-token',
+      'cboard_account_user': jsonEncode(savedUser.toJson()),
+      'cboard_account_email': 'saved@example.com',
+      'cboard_account_password': 'saved-password',
+    });
+
+    final preferences = await SharedPreferences.getInstance();
+    final api = _RefreshingAccountApi()..loginFailure = AccountApiException('disabled', statusCode: 403);
+    final sync = _FakeSubscriptionSync();
+
+    final notifier = AccountNotifier(api, sync, preferences);
+    await pumpEventQueue();
+
+    expect(api.loginEmails, ['saved@example.com']);
+    expect(sync.syncCalls, 0);
+    expect(sync.clearCalls, 1);
+    expect(notifier.state.isAuthenticated, isFalse);
+    expect(notifier.state.authExpired, isTrue);
+    expect(notifier.state.hasSavedCredentials, isTrue);
+    expect(preferences.getString('cboard_account_access_token'), isNull);
+    expect(preferences.getString('cboard_account_refresh_token'), isNull);
+    expect(preferences.getString('cboard_account_user'), isNull);
+    expect(preferences.getString('cboard_account_email'), 'saved@example.com');
+    expect(preferences.getString('cboard_account_password'), 'saved-password');
+  });
+
   test('manual sync refreshes expired access token and preserves stored subscription until success', () async {
     const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
     SharedPreferences.setMockInitialValues({
@@ -99,7 +192,7 @@ void main() {
     expect(sync.syncCalls, 1);
   });
 
-  test('expired refresh token marks auth expired without clearing local subscription', () async {
+  test('expired refresh token marks auth expired and clears local subscription', () async {
     const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
     SharedPreferences.setMockInitialValues({
       'cboard_account_access_token': 'expired-access-token',
@@ -114,11 +207,13 @@ void main() {
     final notifier = AccountNotifier(api, sync, preferences);
     await pumpEventQueue();
 
-    expect(notifier.state.isAuthenticated, isTrue);
+    expect(notifier.state.isAuthenticated, isFalse);
     expect(notifier.state.authExpired, isTrue);
     expect(sync.syncCalls, 0);
-    expect(sync.clearCalls, 0);
-    expect(preferences.getString('cboard_account_refresh_token'), 'invalid-refresh-token');
+    expect(sync.clearCalls, 1);
+    expect(preferences.getString('cboard_account_access_token'), isNull);
+    expect(preferences.getString('cboard_account_refresh_token'), isNull);
+    expect(preferences.getString('cboard_account_user'), isNull);
   });
 
   test('silent subscription status refresh syncs active subscription from dashboard', () async {
@@ -154,20 +249,26 @@ class _RefreshingAccountApi extends AccountApi {
   final List<String> dashboardTokens = [];
   final List<String> deviceTokens = [];
   final List<String> refreshTokens = [];
+  final List<String> loginEmails = [];
+  final List<String> loginPasswords = [];
   int refreshTokenCalls = 0;
   bool _expireFreshTokenOnce = false;
   bool holdDashboards = false;
   AccountApiException? refreshFailure;
+  AccountApiException? loginFailure;
   Completer<void>? _dashboardRelease;
 
   void reset() {
     dashboardTokens.clear();
     deviceTokens.clear();
     refreshTokens.clear();
+    loginEmails.clear();
+    loginPasswords.clear();
     refreshTokenCalls = 0;
     _expireFreshTokenOnce = false;
     holdDashboards = false;
     refreshFailure = null;
+    loginFailure = null;
     _dashboardRelease = null;
   }
 
@@ -178,6 +279,21 @@ class _RefreshingAccountApi extends AccountApi {
   void releaseDashboards() {
     _dashboardRelease?.complete();
     _dashboardRelease = null;
+  }
+
+  @override
+  Future<AccountAuthResponse> login({required String email, required String password}) async {
+    loginEmails.add(email);
+    loginPasswords.add(password);
+    final failure = loginFailure;
+    if (failure != null) {
+      throw failure;
+    }
+    return AccountAuthResponse(
+      accessToken: 'login-access-token',
+      refreshToken: 'login-refresh-token',
+      user: AccountUser(id: 1, username: 'saved', email: email),
+    );
   }
 
   @override

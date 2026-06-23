@@ -26,7 +26,7 @@ class AccountSubscriptionSync {
     final url = subscription?.importUrl ?? '';
     final repo = await _ref.read(profileRepositoryProvider.future);
     final canImport = subscription != null && subscription.canImport && _isUniversalSubscriptionUrl(url);
-    final existingAccountProfile = await _deleteAccountProfiles(repo, activeUrl: url, keepActiveUrl: canImport);
+    final existingAccountProfile = await _deleteAccountProfiles(repo, activeUrl: url);
     if (!canImport) {
       return;
     }
@@ -42,7 +42,7 @@ class AccountSubscriptionSync {
     final subscription = dashboard?.subscription;
     final activeUrl = subscription?.importUrl ?? '';
     final canImport = subscription != null && subscription.canImport && _isUniversalSubscriptionUrl(activeUrl);
-    final existingAccountProfile = await _deleteAccountProfiles(repo, activeUrl: activeUrl, keepActiveUrl: canImport);
+    final existingAccountProfile = await _deleteAccountProfiles(repo, activeUrl: activeUrl);
     if (!canImport) {
       return;
     }
@@ -56,24 +56,16 @@ class AccountSubscriptionSync {
     return url.contains('/subscriptions/universal/');
   }
 
-  Future<RemoteProfileEntity?> _deleteAccountProfiles(
-    ProfileRepository repo, {
-    String? activeUrl,
-    bool keepActiveUrl = false,
-  }) async {
+  Future<RemoteProfileEntity?> _deleteAccountProfiles(ProfileRepository repo, {String? activeUrl}) async {
     final profiles = await repo
         .watchAll(sortMode: SortMode.descending)
         .map((event) => event.getOrElse((failure) => throw failure))
         .first;
     RemoteProfileEntity? keptAccountProfile;
     for (final profile in profiles.where((profile) => _isAccountProfile(profile, activeUrl: activeUrl))) {
-      if (keepActiveUrl &&
-          activeUrl != null &&
-          activeUrl.isNotEmpty &&
-          profile is RemoteProfileEntity &&
-          profile.url == activeUrl) {
+      if (profile is RemoteProfileEntity &&
+          (keptAccountProfile == null || (activeUrl != null && activeUrl.isNotEmpty && profile.url == activeUrl))) {
         keptAccountProfile = profile;
-        continue;
       }
       await repo.deleteById(profile.id, profile.active).getOrElse((failure) => throw failure).run();
     }

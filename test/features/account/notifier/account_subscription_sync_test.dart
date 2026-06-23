@@ -69,7 +69,7 @@ void main() {
           ),
         );
 
-    expect(repo.deletedIds, ['legacy-account']);
+    expect(repo.deletedIds, ['legacy-account', 'account']);
     expect(repo.profiles.map((profile) => profile.id), contains('manual'));
     expect(repo.profiles.map((profile) => profile.id), contains('manual-universal'));
     expect(repo.upsertedUrls, [accountUrl]);
@@ -147,10 +147,50 @@ void main() {
           ),
         );
 
-    expect(repo.deletedIds, isEmpty);
+    expect(repo.deletedIds, ['account']);
     expect(repo.upsertedUserOverrides, [
       const UserOverride(name: AccountSubscriptionSync.accountProfileName, updateInterval: 12),
     ]);
+  });
+
+  test('sync deletes old account subscription before importing new config', () async {
+    const accountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/account-token';
+    final repo = _FakeProfileRepository([
+      RemoteProfileEntity(
+        id: 'account',
+        active: true,
+        name: AccountSubscriptionSync.accountProfileName,
+        url: accountUrl,
+        lastUpdate: DateTime(2026),
+        userOverride: AccountSubscriptionSync.accountProfileOverride,
+      ),
+    ])..upsertFailure = const ProfileFailure.invalidConfig('disabled');
+    final container = ProviderContainer(
+      overrides: [profileRepositoryProvider.overrideWith((ref) => Future.value(repo))],
+    );
+    addTearDown(container.dispose);
+
+    await expectLater(
+      container
+          .read(accountSubscriptionSyncProvider)
+          .sync(
+            const AccountDashboard(
+              subscription: AccountSubscription(
+                id: 1,
+                packageName: 'VIP',
+                universalUrl: accountUrl,
+                status: 'active',
+                remainingDays: 30,
+                isActive: true,
+              ),
+            ),
+          ),
+      throwsA(isA<ProfileInvalidConfigFailure>()),
+    );
+
+    expect(repo.deletedIds, ['account']);
+    expect(repo.profiles.map((profile) => profile.id), isNot(contains('account')));
+    expect(repo.upsertedUrls, [accountUrl]);
   });
 
   test('sync removes account subscription profile when subscription is disabled but still has a url', () async {
@@ -200,6 +240,7 @@ class _FakeProfileRepository implements ProfileRepository {
   final List<String> deletedIds = [];
   final List<String> upsertedUrls = [];
   final List<UserOverride?> upsertedUserOverrides = [];
+  ProfileFailure? upsertFailure;
 
   @override
   TaskEither<ProfileFailure, Unit> deleteById(String id, bool isActive) {
@@ -225,6 +266,12 @@ class _FakeProfileRepository implements ProfileRepository {
     CancelToken? cancelToken,
     bool active = false,
   }) {
+    final failure = upsertFailure;
+    if (failure != null) {
+      upsertedUrls.add(url);
+      upsertedUserOverrides.add(userOverride);
+      return TaskEither.left(failure);
+    }
     return TaskEither.tryCatch(() async {
       upsertedUrls.add(url);
       upsertedUserOverrides.add(userOverride);

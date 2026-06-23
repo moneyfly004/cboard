@@ -29,7 +29,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
     super.initState();
     Future.microtask(() {
       if (!ref.read(accountNotifierProvider).isAuthenticated) {
-        ref.read(accountNotifierProvider.notifier).loadPublicData();
+        ref.read(accountNotifierProvider.notifier).refresh();
       }
     });
   }
@@ -46,6 +46,14 @@ class _AccountPageState extends ConsumerState<AccountPage> {
             onPressed: state.loading ? null : () => _guard(context, ref.read(accountNotifierProvider.notifier).refresh),
             icon: const Icon(Icons.refresh_rounded),
           ),
+          if (state.isAuthenticated || state.hasSavedCredentials)
+            IconButton(
+              tooltip: '退出登录',
+              onPressed: state.loading
+                  ? null
+                  : () => _guard(context, ref.read(accountNotifierProvider.notifier).logout, successMessage: null),
+              icon: const Icon(Icons.logout_rounded),
+            ),
           const Gap(8),
         ],
       ),
@@ -62,7 +70,11 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                   children: [
                     AnimatedSwitcher(
                       duration: kAnimationDuration,
-                      child: state.isAuthenticated ? _AccountSectionBody(section: widget.section) : const _AuthPanel(),
+                      child: state.isAuthenticated
+                          ? _AccountSectionBody(section: widget.section)
+                          : _UnauthenticatedAccountBody(
+                              showAuthExpired: state.authExpired && state.hasSavedCredentials,
+                            ),
                     ),
                   ],
                 ),
@@ -71,6 +83,23 @@ class _AccountPageState extends ConsumerState<AccountPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _UnauthenticatedAccountBody extends StatelessWidget {
+  const _UnauthenticatedAccountBody({required this.showAuthExpired});
+
+  final bool showAuthExpired;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (showAuthExpired) ...[const _AuthExpiredBanner(), const Gap(14)],
+        const _AuthPanel(),
+      ],
     );
   }
 }
@@ -387,14 +416,31 @@ class _AccountOverviewPanel extends ConsumerWidget {
                     ),
                   ),
                   const Gap(12),
-                  OutlinedButton.icon(
-                    onPressed: state.loading
-                        ? null
-                        : () => _guard(context, ref.read(accountNotifierProvider.notifier).refresh),
-                    icon: state.loading
-                        ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.refresh_rounded),
-                    label: const Text('刷新'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: state.loading
+                            ? null
+                            : () => _guard(context, ref.read(accountNotifierProvider.notifier).refresh),
+                        icon: state.loading
+                            ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.refresh_rounded),
+                        label: const Text('刷新'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: state.loading
+                            ? null
+                            : () => _guard(
+                                context,
+                                ref.read(accountNotifierProvider.notifier).logout,
+                                successMessage: null,
+                              ),
+                        icon: const Icon(Icons.logout_rounded),
+                        label: const Text('退出'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -622,12 +668,12 @@ class _AuthExpiredBanner extends ConsumerWidget {
             const Gap(8),
             Expanded(
               child: Text(
-                '登录授权已失效，请重新登录后同步订阅。本地配置不会自动删除。',
+                '登录授权已失效，账户订阅配置已从本机移除。请重新登录后同步订阅。',
                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onErrorContainer),
               ),
             ),
             TextButton(
-              onPressed: () => _guard(context, ref.read(accountNotifierProvider.notifier).logout),
+              onPressed: () => _guard(context, ref.read(accountNotifierProvider.notifier).logout, successMessage: null),
               child: const Text('退出'),
             ),
           ],
@@ -1908,10 +1954,10 @@ class _EmptyLine extends StatelessWidget {
   }
 }
 
-Future<void> _guard(BuildContext context, Future<void> Function() action) async {
+Future<void> _guard(BuildContext context, Future<void> Function() action, {String? successMessage = '操作成功'}) async {
   try {
     await action();
-    if (context.mounted) _showSnack(context, '操作成功');
+    if (context.mounted && successMessage != null) _showSnack(context, successMessage);
   } on AccountApiException catch (error) {
     if (context.mounted) _showSnack(context, error.message);
   } catch (error) {

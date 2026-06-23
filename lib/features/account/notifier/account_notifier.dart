@@ -33,6 +33,7 @@ class AccountState {
     this.loading = false,
     this.syncingSubscription = false,
     this.authExpired = false,
+    this.savedEmail,
     this.message,
   });
 
@@ -51,10 +52,13 @@ class AccountState {
   final bool loading;
   final bool syncingSubscription;
   final bool authExpired;
+  final String? savedEmail;
   final String? message;
 
   bool get isAuthenticated =>
       (token != null && token!.isNotEmpty) || (refreshToken != null && refreshToken!.isNotEmpty);
+
+  bool get hasSavedCredentials => savedEmail != null && savedEmail!.isNotEmpty;
 
   AccountState copyWith({
     String? token,
@@ -72,8 +76,10 @@ class AccountState {
     bool? loading,
     bool? syncingSubscription,
     bool? authExpired,
+    String? savedEmail,
     String? message,
     bool clearAuth = false,
+    bool clearSavedCredentials = false,
   }) {
     return AccountState(
       token: clearAuth ? null : token ?? this.token,
@@ -82,7 +88,7 @@ class AccountState {
       dashboard: clearAuth ? null : dashboard ?? this.dashboard,
       packages: packages ?? this.packages,
       paymentMethods: paymentMethods ?? this.paymentMethods,
-      orders: orders ?? this.orders,
+      orders: clearAuth ? const [] : orders ?? this.orders,
       devices: clearAuth ? const [] : devices ?? this.devices,
       deviceTotal: clearAuth ? 0 : deviceTotal ?? this.deviceTotal,
       deviceOnline: clearAuth ? 0 : deviceOnline ?? this.deviceOnline,
@@ -90,7 +96,8 @@ class AccountState {
       deviceDesktop: clearAuth ? 0 : deviceDesktop ?? this.deviceDesktop,
       loading: loading ?? this.loading,
       syncingSubscription: syncingSubscription ?? this.syncingSubscription,
-      authExpired: !clearAuth && (authExpired ?? this.authExpired),
+      authExpired: authExpired ?? (!clearAuth && this.authExpired),
+      savedEmail: clearSavedCredentials ? null : savedEmail ?? this.savedEmail,
       message: message,
     );
   }
@@ -110,17 +117,22 @@ class AccountNotifier extends StateNotifier<AccountState> {
   static const _tokenKey = 'cboard_account_access_token';
   static const _refreshTokenKey = 'cboard_account_refresh_token';
   static const _userKey = 'cboard_account_user';
+  static const _emailKey = 'cboard_account_email';
+  static const _passwordKey = 'cboard_account_password';
 
   Future<void> login(String email, String password) async {
     await _run(() async {
-      final response = await _api.login(email: email.trim(), password: password);
+      final normalizedEmail = email.trim();
+      final response = await _api.login(email: normalizedEmail, password: password);
       state = state.copyWith(
         token: response.accessToken,
         refreshToken: response.refreshToken,
         user: response.user,
         authExpired: false,
+        savedEmail: normalizedEmail,
       );
       await _persistAuth(response.accessToken, response.refreshToken, response.user);
+      await _persistCredentials(normalizedEmail, password);
       await _refreshAccountData();
     });
   }
@@ -133,9 +145,10 @@ class AccountNotifier extends StateNotifier<AccountState> {
     String? inviteCode,
   }) async {
     await _run(() async {
+      final normalizedEmail = email.trim();
       final response = await _api.register(
         username: username.trim(),
-        email: email.trim(),
+        email: normalizedEmail,
         password: password,
         verificationCode: verificationCode?.trim(),
         inviteCode: inviteCode?.trim(),
@@ -145,8 +158,10 @@ class AccountNotifier extends StateNotifier<AccountState> {
         refreshToken: response.refreshToken,
         user: response.user,
         authExpired: false,
+        savedEmail: normalizedEmail,
       );
       await _persistAuth(response.accessToken, response.refreshToken, response.user);
+      await _persistCredentials(normalizedEmail, password);
       await _refreshAccountData();
     });
   }
@@ -160,14 +175,29 @@ class AccountNotifier extends StateNotifier<AccountState> {
   }
 
   Future<String> resetPassword({required String email, required String verificationCode, required String newPassword}) {
-    return _runWithResult(
-      () =>
-          _api.resetPassword(email: email.trim(), verificationCode: verificationCode.trim(), newPassword: newPassword),
-    );
+    final normalizedEmail = email.trim();
+    return _runWithResult(() async {
+      final message = await _api.resetPassword(
+        email: normalizedEmail,
+        verificationCode: verificationCode.trim(),
+        newPassword: newPassword,
+      );
+      final savedEmail = _preferences.getString(_emailKey);
+      if (savedEmail != null && savedEmail.toLowerCase() == normalizedEmail.toLowerCase()) {
+        await _persistCredentials(normalizedEmail, newPassword);
+      }
+      return message;
+    });
   }
 
   Future<void> refresh() async {
     if (!_hasAuthCredentials) {
+      final email = _normalizedStoredEmail;
+      final password = _preferences.getString(_passwordKey);
+      if (email != null && password != null && password.isNotEmpty) {
+        await _runAccountRefresh(() => _autoLoginWithStoredCredentials(email, password));
+        return;
+      }
       await loadPublicData();
       return;
     }
@@ -220,6 +250,10 @@ class AccountNotifier extends StateNotifier<AccountState> {
         (token) => _api.changePassword(token: token, oldPassword: oldPassword, newPassword: newPassword),
       ),
     );
+    final savedEmail = _preferences.getString(_emailKey) ?? state.user?.email;
+    if (savedEmail != null && savedEmail.trim().isNotEmpty) {
+      await _persistCredentials(savedEmail.trim(), newPassword);
+    }
     state = state.copyWith(message: message);
   }
 
@@ -289,9 +323,7 @@ class AccountNotifier extends StateNotifier<AccountState> {
     state = state.copyWith(loading: true);
     try {
       await _subscriptionSync.clearAccountSubscriptions();
-      await _preferences.remove(_tokenKey);
-      await _preferences.remove(_refreshTokenKey);
-      await _preferences.remove(_userKey);
+      await _clearStoredAuth(clearCredentials: true);
       state = AccountState(packages: state.packages, paymentMethods: state.paymentMethods, message: '已退出登录');
     } catch (_) {
       state = state.copyWith(loading: false);
@@ -374,6 +406,8 @@ class AccountNotifier extends StateNotifier<AccountState> {
     final token = _preferences.getString(_tokenKey);
     final refreshToken = _preferences.getString(_refreshTokenKey);
     final userRaw = _preferences.getString(_userKey);
+    final email = _normalizedStoredEmail;
+    final password = _preferences.getString(_passwordKey);
     AccountUser? user;
     if (userRaw != null && userRaw.isNotEmpty) {
       try {
@@ -386,7 +420,27 @@ class AccountNotifier extends StateNotifier<AccountState> {
       }
     }
     if ((token != null && token.isNotEmpty) || (refreshToken != null && refreshToken.isNotEmpty)) {
-      state = state.copyWith(token: token, refreshToken: refreshToken, user: user, authExpired: false);
+      state = state.copyWith(
+        token: token,
+        refreshToken: refreshToken,
+        user: user,
+        authExpired: false,
+        savedEmail: email,
+      );
+    } else if (email != null) {
+      state = state.copyWith(savedEmail: email);
+    }
+    if (email != null && password != null && password.isNotEmpty) {
+      final storedEmail = email;
+      final storedPassword = password;
+      Future.microtask(() async {
+        try {
+          await _runAccountRefresh(() => _autoLoginWithStoredCredentials(storedEmail, storedPassword));
+        } catch (_) {
+          // Keep saved credentials so the next launch can retry unless the user logs out.
+        }
+      });
+    } else if (_hasAuthCredentials) {
       Future.microtask(() async {
         try {
           await refresh();
@@ -417,11 +471,18 @@ class AccountNotifier extends StateNotifier<AccountState> {
       }
       final refreshToken = state.refreshToken;
       if (refreshToken == null || refreshToken.isEmpty) {
-        _markAuthExpired();
+        await _markAuthExpired();
         rethrow;
       }
       final refreshedToken = await _refreshAccessToken(refreshToken);
-      return action(refreshedToken);
+      try {
+        return await action(refreshedToken);
+      } on AccountApiException catch (refreshedError) {
+        if (_canRefreshAfter(refreshedError)) {
+          await _markAuthExpired();
+        }
+        rethrow;
+      }
     }
   }
 
@@ -457,12 +518,12 @@ class AccountNotifier extends StateNotifier<AccountState> {
       response = await _api.refreshToken(refreshToken);
     } on AccountApiException catch (error) {
       if (_isExpiredAuthError(error)) {
-        _markAuthExpired();
+        await _markAuthExpired();
       }
       rethrow;
     }
     if (response.accessToken.isEmpty) {
-      _markAuthExpired();
+      await _markAuthExpired();
       throw AccountApiException('登录状态已过期，请重新登录', statusCode: 401);
     }
     final nextRefreshToken = (response.refreshToken != null && response.refreshToken!.isNotEmpty)
@@ -474,6 +535,7 @@ class AccountNotifier extends StateNotifier<AccountState> {
       refreshToken: nextRefreshToken,
       user: nextUser,
       authExpired: false,
+      savedEmail: _normalizedStoredEmail,
     );
     await _persistAuth(response.accessToken, nextRefreshToken, nextUser);
     return response.accessToken;
@@ -487,8 +549,35 @@ class AccountNotifier extends StateNotifier<AccountState> {
     return error.statusCode == 400 || error.statusCode == 401 || error.statusCode == 403;
   }
 
-  void _markAuthExpired() {
-    state = state.copyWith(authExpired: true, message: '登录授权已失效，请重新登录');
+  Future<void> _autoLoginWithStoredCredentials(String email, String password) async {
+    try {
+      final response = await _api.login(email: email, password: password);
+      state = state.copyWith(
+        token: response.accessToken,
+        refreshToken: response.refreshToken,
+        user: response.user,
+        authExpired: false,
+        savedEmail: email,
+      );
+      await _persistAuth(response.accessToken, response.refreshToken, response.user);
+      await _persistCredentials(email, password);
+      await _refreshAccountData();
+    } on AccountApiException catch (error) {
+      if (_isExpiredAuthError(error) && !state.authExpired) {
+        await _markAuthExpired(message: '自动登录失败，请重新登录');
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _markAuthExpired({String message = '登录授权已失效，请重新登录'}) async {
+    try {
+      await _subscriptionSync.clearAccountSubscriptions();
+    } catch (_) {
+      // Authentication state should still be updated even if local cleanup fails.
+    }
+    await _clearStoredAuth(clearCredentials: false);
+    state = state.copyWith(clearAuth: true, authExpired: true, savedEmail: _normalizedStoredEmail, message: message);
   }
 
   Future<void> _persistAuth(String? token, String? refreshToken, AccountUser? user) async {
@@ -501,6 +590,33 @@ class AccountNotifier extends StateNotifier<AccountState> {
     if (user != null) {
       await _preferences.setString(_userKey, jsonEncode(user.toJson()));
     }
+  }
+
+  Future<void> _persistCredentials(String email, String password) async {
+    if (email.isNotEmpty) {
+      await _preferences.setString(_emailKey, email);
+    }
+    if (password.isNotEmpty) {
+      await _preferences.setString(_passwordKey, password);
+    }
+  }
+
+  Future<void> _clearStoredAuth({required bool clearCredentials}) async {
+    await _preferences.remove(_tokenKey);
+    await _preferences.remove(_refreshTokenKey);
+    await _preferences.remove(_userKey);
+    if (clearCredentials) {
+      await _preferences.remove(_emailKey);
+      await _preferences.remove(_passwordKey);
+    }
+  }
+
+  String? get _normalizedStoredEmail {
+    final email = _preferences.getString(_emailKey)?.trim();
+    if (email == null || email.isEmpty) {
+      return null;
+    }
+    return email;
   }
 
   Future<void> _run(Future<void> Function() action) async {
