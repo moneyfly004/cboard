@@ -204,6 +204,30 @@ void main() {
     expect(subscriptions.single.canImport, isTrue);
   });
 
+  test('AccountApi expands raw backend subscription token into client subscribe URL', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://dy.moneyfly.top/api/v1'))
+      ..httpClientAdapter = _JsonAdapter({
+        'data': [
+          {
+            'subscription_url': 'raw-subscription-token',
+            'status': 'active',
+            'is_active': true,
+            'days_until_expire': 30,
+          },
+        ],
+      });
+    final api = AccountApi(dio: dio);
+
+    final subscriptions = await api.getSubscriptions('access-token');
+
+    expect(subscriptions, hasLength(1));
+    expect(
+      subscriptions.single.importUrl,
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=raw-subscription-token',
+    );
+    expect(subscriptions.single.canImport, isTrue);
+  });
+
   test('AccountApi parses backend paginated orders response', () async {
     final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))
       ..httpClientAdapter = _JsonAdapter({

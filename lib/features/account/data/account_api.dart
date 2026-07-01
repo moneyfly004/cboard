@@ -105,7 +105,7 @@ class AccountApi {
 
   Future<List<AccountSubscription>> getSubscriptions(String token) async {
     final data = await _get('/subscriptions', token: token);
-    return _listPayload(data).map(AccountSubscription.fromJson).toList();
+    return _listPayload(data).map(_normalizeSubscriptionPayload).map(AccountSubscription.fromJson).toList();
   }
 
   Future<List<AccountPackage>> getPackages() async {
@@ -263,6 +263,22 @@ class AccountApi {
       }
     }
     return null;
+  }
+
+  Map<String, dynamic> _normalizeSubscriptionPayload(Map<String, dynamic> json) {
+    final subscriptionUrl = json['subscription_url']?.toString().trim() ?? '';
+    if (subscriptionUrl.isEmpty || Uri.tryParse(subscriptionUrl)?.hasScheme == true) {
+      return json;
+    }
+    return {...json, 'subscription_url': _clientSubscribeUrl(subscriptionUrl)};
+  }
+
+  String _clientSubscribeUrl(String token) {
+    final baseUri = Uri.parse(_dio.options.baseUrl);
+    final normalizedBasePath = baseUri.path.endsWith('/')
+        ? baseUri.path.substring(0, baseUri.path.length - 1)
+        : baseUri.path;
+    return baseUri.replace(path: '$normalizedBasePath/client/subscribe', queryParameters: {'token': token}).toString();
   }
 
   String _messageFromData(Map<String, dynamic> data, {required String fallback}) {
