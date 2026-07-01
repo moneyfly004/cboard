@@ -506,11 +506,11 @@ class AccountSubscription {
       clashUrl: json['clashUrl']?.toString() ?? json['clash_url']?.toString() ?? '',
       expireTime: json['expire_time']?.toString() ?? json['expiryDate']?.toString() ?? '',
       remainingDays: _asInt(json['remaining_days'] ?? json['days_until_expire']),
-      status: json['status']?.toString() ?? '',
+      status: _asStatus(json['status']),
       deviceLimit: _asInt(json['device_limit'] ?? json['maxDevices']),
       currentDevices: _asInt(json['current_devices'] ?? json['currentDevices']),
       onlineDevices: _asInt(json['online_devices'] ?? json['currentDevices']),
-      isActive: json['is_active'] == true || json['status'] == 'active',
+      isActive: _asBool(json['is_active']) || _asStatus(json['status']) == 'active',
       isExpired: _asBool(json['is_expired']),
     );
   }
@@ -755,7 +755,7 @@ class AccountOrder {
       orderNo: json['order_no']?.toString() ?? '',
       packageName: json['package_name']?.toString() ?? (json['package'] as Map?)?['name']?.toString() ?? '套餐',
       amount: _asDouble(json['final_amount'] ?? json['amount'] ?? json['order_amount']),
-      status: json['status']?.toString() ?? '',
+      status: _asStatus(json['status']),
       createdAt: json['created_at']?.toString() ?? '',
       paymentUrl: json['payment_url']?.toString(),
     );
@@ -777,9 +777,9 @@ class AccountOrderStatus {
   final double finalAmount;
   final String type;
 
-  bool get isPaid => status == 'paid';
+  bool get isPaid => _asStatus(status) == 'paid';
 
-  bool get isFinished => switch (status) {
+  bool get isFinished => switch (_asStatus(status)) {
     'paid' || 'cancelled' || 'failed' || 'expired' || 'refunded' => true,
     _ => false,
   };
@@ -787,7 +787,7 @@ class AccountOrderStatus {
   factory AccountOrderStatus.fromJson(Map<String, dynamic> json) {
     return AccountOrderStatus(
       orderNo: json['order_no']?.toString() ?? '',
-      status: json['status']?.toString() ?? '',
+      status: _asStatus(json['status']),
       amount: _asDouble(json['amount']),
       finalAmount: _asDouble(json['final_amount'] ?? json['amount']),
       type: json['type']?.toString() ?? '',
@@ -816,7 +816,7 @@ class OrderResult {
     return OrderResult(
       id: _asInt(json['id'] ?? json['transaction_id']),
       orderNo: json['order_no']?.toString() ?? '',
-      status: json['status']?.toString() ?? '',
+      status: _asStatus(json['status']),
       amount: _asDouble(json['final_amount'] ?? json['amount']),
       paymentUrl: json['payment_url']?.toString(),
       paymentQrCode: json['payment_qr_code']?.toString(),
@@ -867,6 +867,10 @@ bool _asBool(Object? value, {bool fallback = false}) {
     }
   }
   return fallback;
+}
+
+String _asStatus(Object? value) {
+  return value?.toString().trim().toLowerCase() ?? '';
 }
 
 int? _readOptionalInt(Map<String, dynamic> json, List<String> keys) {

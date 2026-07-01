@@ -155,6 +155,27 @@ void main() {
     expect(subscription.canImport, isTrue);
   });
 
+  test('AccountSubscription accepts non-boolean active flags and normalizes status', () {
+    final subscription = AccountSubscription.fromJson({
+      'universal_url': 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
+      'status': ' Active ',
+      'is_active': '1',
+      'is_expired': 'false',
+      'days_until_expire': '30',
+    });
+
+    expect(subscription.status, 'active');
+    expect(subscription.canImport, isTrue);
+  });
+
+  test('AccountOrderStatus normalizes backend status before comparisons', () {
+    final status = AccountOrderStatus.fromJson({'order_no': 'ORD001', 'status': ' Paid ', 'amount': '9.9'});
+
+    expect(status.status, 'paid');
+    expect(status.isPaid, isTrue);
+    expect(status.isFinished, isTrue);
+  });
+
   test('AccountApi parses nested subscriptions list response', () async {
     const subscriptionUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=active-token';
     final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))
