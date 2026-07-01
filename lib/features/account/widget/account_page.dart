@@ -905,9 +905,7 @@ class _SubscriptionPanel extends ConsumerWidget {
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 520;
               final syncButton = FilledButton.icon(
-                onPressed: syncing || !canImport
-                    ? null
-                    : () => _guard(context, ref.read(accountNotifierProvider.notifier).syncSubscription),
+                onPressed: syncing || !canImport ? null : () => _syncAccountSubscription(context, ref),
                 icon: syncing
                     ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.cloud_upload_rounded),
@@ -1669,9 +1667,7 @@ class _SubscriptionSyncStatus extends ConsumerWidget {
               ),
             ),
             OutlinedButton.icon(
-              onPressed: syncing
-                  ? null
-                  : () => _guard(context, ref.read(accountNotifierProvider.notifier).syncSubscription),
+              onPressed: syncing ? null : () => _syncAccountSubscription(context, ref),
               icon: const Icon(Icons.update_rounded),
               label: const Text('同步'),
             ),
@@ -1958,6 +1954,18 @@ Future<void> _guard(BuildContext context, Future<void> Function() action, {Strin
   try {
     await action();
     if (context.mounted && successMessage != null) _showSnack(context, successMessage);
+  } on AccountApiException catch (error) {
+    if (context.mounted) _showSnack(context, error.message);
+  } catch (error) {
+    if (context.mounted) _showSnack(context, error.toString());
+  }
+}
+
+Future<void> _syncAccountSubscription(BuildContext context, WidgetRef ref) async {
+  try {
+    final imported = await ref.read(accountNotifierProvider.notifier).syncSubscription();
+    if (!context.mounted) return;
+    _showSnack(context, imported ? '订阅已同步' : '未找到可同步的账户订阅，请确认套餐已生效');
   } on AccountApiException catch (error) {
     if (context.mounted) _showSnack(context, error.message);
   } catch (error) {

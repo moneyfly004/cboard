@@ -204,7 +204,8 @@ class AccountNotifier extends StateNotifier<AccountState> {
     await _runAccountRefresh(_refreshAccountData);
   }
 
-  Future<void> syncSubscription() async {
+  Future<bool> syncSubscription() async {
+    var imported = false;
     await _runAccountRefresh(() async {
       final dashboard = await _withAuthenticatedToken(_loadDashboardWithSubscriptionFallback);
       state = state.copyWith(
@@ -213,8 +214,9 @@ class AccountNotifier extends StateNotifier<AccountState> {
         authExpired: false,
       );
       await _persistAuth(state.token, state.refreshToken, dashboard.user);
-      await _syncSubscription(dashboard, successMessage: '订阅已同步');
+      imported = await _syncSubscription(dashboard, successMessage: '订阅已同步');
     });
+    return imported;
   }
 
   Future<void> refreshActiveSubscription() async {
@@ -365,11 +367,12 @@ class AccountNotifier extends StateNotifier<AccountState> {
     }
   }
 
-  Future<void> _syncSubscription(AccountDashboard dashboard, {String? successMessage}) async {
+  Future<bool> _syncSubscription(AccountDashboard dashboard, {String? successMessage}) async {
     state = state.copyWith(syncingSubscription: true);
     try {
-      await _subscriptionSync.sync(dashboard);
-      state = state.copyWith(syncingSubscription: false, message: successMessage);
+      final imported = await _subscriptionSync.sync(dashboard);
+      state = state.copyWith(syncingSubscription: false, message: imported ? successMessage : null);
+      return imported;
     } catch (_) {
       state = state.copyWith(syncingSubscription: false);
       rethrow;

@@ -38,7 +38,15 @@ class AddProfileModal extends ConsumerWidget {
               onPressed: state.loading || !state.isAuthenticated
                   ? null
                   : () async {
-                      await ref.read(accountNotifierProvider.notifier).syncSubscription();
+                      final imported = await ref.read(accountNotifierProvider.notifier).syncSubscription();
+                      if (!imported) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(const SnackBar(content: Text('未找到可同步的账户订阅，请确认套餐已生效')));
+                        }
+                        return;
+                      }
                       if (context.mounted && context.canPop()) {
                         context.pop();
                       }

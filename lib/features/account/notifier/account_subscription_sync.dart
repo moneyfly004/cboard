@@ -21,17 +21,17 @@ class AccountSubscriptionSync {
     await _deleteAccountProfiles(repo);
   }
 
-  Future<void> sync(AccountDashboard? dashboard) async {
+  Future<bool> sync(AccountDashboard? dashboard) async {
     final subscription = dashboard?.subscription;
     final url = subscription?.importUrl ?? '';
     final repo = await _ref.read(profileRepositoryProvider.future);
     if (dashboard?.preserveLocalSubscription == true) {
-      return;
+      return false;
     }
     final canImport = subscription != null && subscription.canImport && _isAccountSubscriptionUrl(url);
     if (!canImport) {
       await _deleteAccountProfiles(repo);
-      return;
+      return false;
     }
 
     final existingAccountProfile = await _findAccountProfile(repo, activeUrl: url);
@@ -40,6 +40,7 @@ class AccountSubscriptionSync {
         .getOrElse((failure) => throw failure)
         .run();
     await _deleteAccountProfiles(repo, exceptUrl: url);
+    return true;
   }
 
   Future<void> refreshActiveSubscription(AccountDashboard? dashboard) async {

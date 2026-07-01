@@ -150,7 +150,7 @@ void main() {
     sync.reset();
     api.expireFreshTokenOnce();
 
-    await notifier.syncSubscription();
+    final imported = await notifier.syncSubscription();
 
     expect(api.dashboardTokens, ['fresh-access-token', 'fresh-access-token']);
     expect(api.refreshTokenCalls, 1);
@@ -158,6 +158,7 @@ void main() {
     expect(api.deviceTokens, isEmpty);
     expect(sync.syncCalls, 1);
     expect(sync.clearCalls, 0);
+    expect(imported, isTrue);
     expect(notifier.state.isAuthenticated, isTrue);
     expect(notifier.state.token, 'fresh-access-token');
     expect(notifier.state.refreshToken, 'fresh-refresh-token');
@@ -275,12 +276,13 @@ void main() {
         AccountSubscription(universalUrl: fallbackUrl, status: 'active', remainingDays: 30, isActive: true),
       ];
 
-    await notifier.syncSubscription();
+    final imported = await notifier.syncSubscription();
 
     expect(api.dashboardTokens, ['fresh-access-token']);
     expect(api.subscriptionTokens, ['fresh-access-token']);
     expect(sync.syncedSubscriptions.single?.importUrl, fallbackUrl);
     expect(notifier.state.dashboard?.subscription?.importUrl, fallbackUrl);
+    expect(imported, isTrue);
   });
 
   test('manual sync preserves local subscription when fallback list cannot be loaded', () async {
@@ -309,13 +311,14 @@ void main() {
       ..dashboardSubscription = null
       ..subscriptionsFailure = AccountApiException('server unavailable', statusCode: 500);
 
-    await notifier.syncSubscription();
+    final imported = await notifier.syncSubscription();
 
     expect(api.dashboardTokens, ['fresh-access-token']);
     expect(api.subscriptionTokens, ['fresh-access-token']);
     expect(sync.syncCalls, 1);
     expect(sync.syncedDashboards.single?.preserveLocalSubscription, isTrue);
     expect(sync.syncedSubscriptions.single, isNull);
+    expect(imported, isFalse);
     expect(notifier.state.dashboard?.preserveLocalSubscription, isFalse);
     expect(
       notifier.state.dashboard?.subscription?.importUrl,
@@ -349,13 +352,14 @@ void main() {
       ..dashboardSubscription = null
       ..subscriptions = const [];
 
-    await notifier.syncSubscription();
+    final imported = await notifier.syncSubscription();
 
     expect(api.dashboardTokens, ['fresh-access-token']);
     expect(api.subscriptionTokens, ['fresh-access-token']);
     expect(sync.syncCalls, 1);
     expect(sync.syncedDashboards.single?.preserveLocalSubscription, isTrue);
     expect(sync.syncedSubscriptions.single, isNull);
+    expect(imported, isFalse);
     expect(
       notifier.state.dashboard?.subscription?.importUrl,
       'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
@@ -666,9 +670,10 @@ class _FakeSubscriptionSync implements AccountSubscriptionSync {
   }
 
   @override
-  Future<void> sync(AccountDashboard? dashboard) async {
+  Future<bool> sync(AccountDashboard? dashboard) async {
     syncCalls++;
     syncedDashboards.add(dashboard);
     syncedSubscriptions.add(dashboard?.subscription);
+    return dashboard?.preserveLocalSubscription != true && dashboard?.subscription?.canImport == true;
   }
 }
