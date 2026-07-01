@@ -116,6 +116,58 @@ void main() {
     expect(repo.upsertedUrls, isEmpty);
   });
 
+  test('sync preserves account subscription when backend status is unavailable', () async {
+    const accountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/account-token';
+    final repo = _FakeProfileRepository([
+      RemoteProfileEntity(
+        id: 'account',
+        active: true,
+        name: AccountSubscriptionSync.accountProfileName,
+        url: accountUrl,
+        lastUpdate: DateTime(2026),
+        userOverride: AccountSubscriptionSync.accountProfileOverride,
+      ),
+    ]);
+    final container = ProviderContainer(
+      overrides: [profileRepositoryProvider.overrideWith((ref) => Future.value(repo))],
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(accountSubscriptionSyncProvider)
+        .sync(const AccountDashboard().preserveExistingLocalSubscription());
+
+    expect(repo.deletedIds, isEmpty);
+    expect(repo.upsertedUrls, isEmpty);
+    expect(repo.profiles.map((profile) => profile.id), contains('account'));
+  });
+
+  test('refresh active subscription preserves account subscription when backend status is unavailable', () async {
+    const accountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/account-token';
+    final repo = _FakeProfileRepository([
+      RemoteProfileEntity(
+        id: 'account',
+        active: true,
+        name: AccountSubscriptionSync.accountProfileName,
+        url: accountUrl,
+        lastUpdate: DateTime(2026),
+        userOverride: AccountSubscriptionSync.accountProfileOverride,
+      ),
+    ]);
+    final container = ProviderContainer(
+      overrides: [profileRepositoryProvider.overrideWith((ref) => Future.value(repo))],
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(accountSubscriptionSyncProvider)
+        .refreshActiveSubscription(const AccountDashboard().preserveExistingLocalSubscription());
+
+    expect(repo.deletedIds, isEmpty);
+    expect(repo.upsertedUrls, isEmpty);
+    expect(repo.profiles.map((profile) => profile.id), contains('account'));
+  });
+
   test('sync keeps user configured account subscription update interval', () async {
     const accountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/account-token';
     final repo = _FakeProfileRepository([

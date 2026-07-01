@@ -411,6 +411,9 @@ class AccountNotifier extends StateNotifier<AccountState> {
       final subscriptions = await _api.getSubscriptions(token);
       return dashboard.withSubscriptionFallback(subscriptions);
     } catch (_) {
+      if (dashboard.subscription == null) {
+        return dashboard.preserveExistingLocalSubscription();
+      }
       return dashboard;
     }
   }

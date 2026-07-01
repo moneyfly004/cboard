@@ -323,12 +323,14 @@ class AccountDashboard {
     this.subscription,
     this.recentOrders = const [],
     this.totalSpent = 0,
+    this.preserveLocalSubscription = false,
   });
 
   final AccountUser user;
   final AccountSubscription? subscription;
   final List<AccountOrder> recentOrders;
   final double totalSpent;
+  final bool preserveLocalSubscription;
 
   factory AccountDashboard.fromJson(Map<String, dynamic> json) {
     final userJson = (json['user'] as Map?)?.cast<String, dynamic>() ?? json;
@@ -357,6 +359,16 @@ class AccountDashboard {
       }
     }
     return this;
+  }
+
+  AccountDashboard preserveExistingLocalSubscription() {
+    return AccountDashboard(
+      user: user,
+      subscription: subscription,
+      recentOrders: recentOrders,
+      totalSpent: totalSpent,
+      preserveLocalSubscription: true,
+    );
   }
 }
 

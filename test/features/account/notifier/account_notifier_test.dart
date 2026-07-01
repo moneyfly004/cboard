@@ -282,6 +282,35 @@ void main() {
     expect(sync.syncedSubscriptions.single?.importUrl, fallbackUrl);
     expect(notifier.state.dashboard?.subscription?.importUrl, fallbackUrl);
   });
+
+  test('manual sync preserves local subscription when fallback list cannot be loaded', () async {
+    const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
+    SharedPreferences.setMockInitialValues({
+      'cboard_account_access_token': 'fresh-access-token',
+      'cboard_account_refresh_token': 'fresh-refresh-token',
+      'cboard_account_user': jsonEncode(savedUser.toJson()),
+    });
+
+    final preferences = await SharedPreferences.getInstance();
+    final api = _RefreshingAccountApi()
+      ..subscriptionsFailure = AccountApiException('server unavailable', statusCode: 500);
+    final sync = _FakeSubscriptionSync();
+
+    final notifier = AccountNotifier(api, sync, preferences);
+    await pumpEventQueue();
+    api.reset();
+    sync.reset();
+    api.subscriptionsFailure = AccountApiException('server unavailable', statusCode: 500);
+
+    await notifier.syncSubscription();
+
+    expect(api.dashboardTokens, ['fresh-access-token']);
+    expect(api.subscriptionTokens, ['fresh-access-token']);
+    expect(sync.syncCalls, 1);
+    expect(sync.syncedDashboards.single?.preserveLocalSubscription, isTrue);
+    expect(sync.syncedSubscriptions.single, isNull);
+    expect(notifier.state.dashboard?.preserveLocalSubscription, isTrue);
+  });
 }
 
 class _RefreshingAccountApi extends AccountApi {
@@ -300,6 +329,7 @@ class _RefreshingAccountApi extends AccountApi {
   List<AccountSubscription> subscriptions = const [];
   AccountApiException? refreshFailure;
   AccountApiException? loginFailure;
+  AccountApiException? subscriptionsFailure;
   Completer<void>? _dashboardRelease;
 
   void reset() {
@@ -316,6 +346,7 @@ class _RefreshingAccountApi extends AccountApi {
     subscriptions = const [];
     refreshFailure = null;
     loginFailure = null;
+    subscriptionsFailure = null;
     _dashboardRelease = null;
   }
 
@@ -377,6 +408,10 @@ class _RefreshingAccountApi extends AccountApi {
   @override
   Future<List<AccountSubscription>> getSubscriptions(String token) async {
     subscriptionTokens.add(token);
+    final failure = subscriptionsFailure;
+    if (failure != null) {
+      throw failure;
+    }
     return subscriptions;
   }
 
@@ -408,12 +443,14 @@ class _FakeSubscriptionSync implements AccountSubscriptionSync {
   int clearCalls = 0;
   int refreshActiveCalls = 0;
   int syncCalls = 0;
+  final List<AccountDashboard?> syncedDashboards = [];
   final List<AccountSubscription?> syncedSubscriptions = [];
 
   void reset() {
     clearCalls = 0;
     refreshActiveCalls = 0;
     syncCalls = 0;
+    syncedDashboards.clear();
     syncedSubscriptions.clear();
   }
 
@@ -430,6 +467,7 @@ class _FakeSubscriptionSync implements AccountSubscriptionSync {
   @override
   Future<void> sync(AccountDashboard? dashboard) async {
     syncCalls++;
+    syncedDashboards.add(dashboard);
     syncedSubscriptions.add(dashboard?.subscription);
   }
 }

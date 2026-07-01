@@ -869,7 +869,7 @@ class _SubscriptionPanel extends ConsumerWidget {
                                 canImport
                                     ? '订阅可写入本机配置'
                                     : hasSyncUrl
-                                    ? '同步后会写入服务端返回的状态配置'
+                                    ? '订阅当前不可用，恢复后可同步'
                                     : '订阅暂不可导入，请检查状态或到期时间',
                                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                               ),
@@ -905,7 +905,7 @@ class _SubscriptionPanel extends ConsumerWidget {
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 520;
               final syncButton = FilledButton.icon(
-                onPressed: syncing || !hasSyncUrl
+                onPressed: syncing || !canImport
                     ? null
                     : () => _guard(context, ref.read(accountNotifierProvider.notifier).syncSubscription),
                 icon: syncing
@@ -914,7 +914,7 @@ class _SubscriptionPanel extends ConsumerWidget {
                 label: const Text('同步到本机'),
               );
               final refreshButton = OutlinedButton.icon(
-                onPressed: syncing || !hasSyncUrl
+                onPressed: syncing || !canImport
                     ? null
                     : () => _guard(context, ref.read(accountNotifierProvider.notifier).refreshActiveSubscription),
                 icon: const Icon(Icons.update_rounded),
