@@ -25,7 +25,7 @@ class AccountSubscriptionSync {
     final subscription = dashboard?.subscription;
     final url = subscription?.importUrl ?? '';
     final repo = await _ref.read(profileRepositoryProvider.future);
-    final canImport = subscription != null && subscription.canImport && _isUniversalSubscriptionUrl(url);
+    final canImport = subscription != null && subscription.canImport && _isAccountSubscriptionUrl(url);
     final existingAccountProfile = await _deleteAccountProfiles(repo, activeUrl: url);
     if (!canImport) {
       return;
@@ -41,7 +41,7 @@ class AccountSubscriptionSync {
     final repo = await _ref.read(profileRepositoryProvider.future);
     final subscription = dashboard?.subscription;
     final activeUrl = subscription?.importUrl ?? '';
-    final canImport = subscription != null && subscription.canImport && _isUniversalSubscriptionUrl(activeUrl);
+    final canImport = subscription != null && subscription.canImport && _isAccountSubscriptionUrl(activeUrl);
     final existingAccountProfile = await _deleteAccountProfiles(repo, activeUrl: activeUrl);
     if (!canImport) {
       return;
@@ -52,8 +52,15 @@ class AccountSubscriptionSync {
         .run();
   }
 
-  bool _isUniversalSubscriptionUrl(String url) {
-    return url.contains('/subscriptions/universal/');
+  bool _isAccountSubscriptionUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      return false;
+    }
+    if (uri.path.contains('/subscriptions/universal/')) {
+      return true;
+    }
+    return uri.path.endsWith('/client/subscribe') && (uri.queryParameters['token']?.isNotEmpty ?? false);
   }
 
   Future<RemoteProfileEntity?> _deleteAccountProfiles(ProfileRepository repo, {String? activeUrl}) async {
@@ -101,8 +108,8 @@ class AccountSubscriptionSync {
     final uri = Uri.tryParse(url);
     return uri != null &&
         _isKnownAccountSubscriptionHost(uri.host) &&
-        uri.pathSegments.contains('subscriptions') &&
-        uri.pathSegments.contains('universal');
+        ((uri.pathSegments.contains('subscriptions') && uri.pathSegments.contains('universal')) ||
+            (uri.path.endsWith('/client/subscribe') && (uri.queryParameters['token']?.isNotEmpty ?? false)));
   }
 
   bool _hasLegacyAccountUpdateInterval(UserOverride? userOverride) {

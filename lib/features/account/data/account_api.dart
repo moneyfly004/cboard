@@ -373,10 +373,10 @@ class AccountSubscription {
   final bool isActive;
 
   String get importUrl {
-    if (universalUrl.contains('/subscriptions/universal/')) {
+    if (_isSupportedImportUrl(universalUrl)) {
       return universalUrl;
     }
-    if (subscriptionUrl.contains('/subscriptions/universal/')) {
+    if (_isSupportedImportUrl(subscriptionUrl)) {
       return subscriptionUrl;
     }
     return '';
@@ -397,6 +397,18 @@ class AccountSubscription {
   }
 
   bool get hasImportUrl => importUrl.isNotEmpty;
+
+  static bool _isSupportedImportUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      return false;
+    }
+    final path = uri.path;
+    if (path.contains('/subscriptions/universal/')) {
+      return true;
+    }
+    return path.endsWith('/client/subscribe') && (uri.queryParameters['token']?.isNotEmpty ?? false);
+  }
 
   factory AccountSubscription.fromJson(Map<String, dynamic> json) {
     return AccountSubscription(

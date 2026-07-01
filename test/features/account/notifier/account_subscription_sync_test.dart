@@ -231,6 +231,34 @@ void main() {
     expect(repo.deletedIds, ['old-disabled-account']);
     expect(repo.upsertedUrls, isEmpty);
   });
+
+  test('sync imports backend client subscribe url after login', () async {
+    const accountUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token';
+    final repo = _FakeProfileRepository([]);
+    final container = ProviderContainer(
+      overrides: [profileRepositoryProvider.overrideWith((ref) => Future.value(repo))],
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(accountSubscriptionSyncProvider)
+        .sync(
+          const AccountDashboard(
+            subscription: AccountSubscription(
+              id: 1,
+              packageName: 'VIP',
+              universalUrl: accountUrl,
+              status: 'active',
+              remainingDays: 30,
+              isActive: true,
+            ),
+          ),
+        );
+
+    expect(repo.upsertedUrls, [accountUrl]);
+    expect(repo.upsertedUserOverrides, [AccountSubscriptionSync.accountProfileOverride]);
+    expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, accountUrl);
+  });
 }
 
 class _FakeProfileRepository implements ProfileRepository {
