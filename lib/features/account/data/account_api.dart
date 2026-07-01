@@ -100,12 +100,15 @@ class AccountApi {
 
   Future<AccountDashboard> getDashboard(String token) async {
     final data = await _get('/users/dashboard-info', token: token);
-    return AccountDashboard.fromJson(_payload(data));
+    return AccountDashboard.fromJson(_payload(data), baseUrl: _dio.options.baseUrl);
   }
 
   Future<List<AccountSubscription>> getSubscriptions(String token) async {
     final data = await _get('/subscriptions', token: token);
-    return _listPayload(data).map(_normalizeSubscriptionPayload).map(AccountSubscription.fromJson).toList();
+    return _listPayload(data)
+        .map(_normalizeSubscriptionPayload)
+        .map((subscription) => AccountSubscription.fromJson(subscription, baseUrl: _dio.options.baseUrl))
+        .toList();
   }
 
   Future<List<AccountPackage>> getPackages() async {
@@ -377,7 +380,7 @@ class AccountDashboard {
   final double totalSpent;
   final bool preserveLocalSubscription;
 
-  factory AccountDashboard.fromJson(Map<String, dynamic> json) {
+  factory AccountDashboard.fromJson(Map<String, dynamic> json, {String baseUrl = kCBoardApiBaseUrl}) {
     final userJson =
         (json['user'] as Map?)?.cast<String, dynamic>() ?? (json['user_info'] as Map?)?.cast<String, dynamic>() ?? json;
     final subscriptionJson = (json['subscription'] as Map?)?.cast<String, dynamic>();
@@ -386,10 +389,10 @@ class AccountDashboard {
     final statJson = (json['stat'] as Map?)?.cast<String, dynamic>();
     AccountSubscription? subscription;
     if (subscriptionJson != null) {
-      subscription = AccountSubscription.fromJson(subscriptionJson);
+      subscription = AccountSubscription.fromJson(subscriptionJson, baseUrl: baseUrl);
     } else if (rawSubscriptions is List) {
       for (final rawSubscription in rawSubscriptions.whereType<Map>()) {
-        final candidate = AccountSubscription.fromJson(rawSubscription.cast<String, dynamic>());
+        final candidate = AccountSubscription.fromJson(rawSubscription.cast<String, dynamic>(), baseUrl: baseUrl);
         if (subscription == null || candidate.canImport) {
           subscription = candidate;
         }
@@ -505,16 +508,23 @@ class AccountSubscription {
     return path.endsWith('/client/subscribe') && (uri.queryParameters['token']?.isNotEmpty ?? false);
   }
 
-  factory AccountSubscription.fromJson(Map<String, dynamic> json) {
+  factory AccountSubscription.fromJson(Map<String, dynamic> json, {String baseUrl = kCBoardApiBaseUrl}) {
     return AccountSubscription(
       id: _asInt(json['id'] ?? json['subscription_id']),
       packageName: json['package_name']?.toString() ?? '',
-      subscriptionUrl: _normalizeSubscriptionUrl(json['subscription_url']?.toString() ?? ''),
-      singboxUrl: _normalizeSubscriptionUrl(json['singboxUrl']?.toString() ?? json['singbox_url']?.toString() ?? ''),
+      subscriptionUrl: _normalizeSubscriptionUrl(json['subscription_url']?.toString() ?? '', baseUrl: baseUrl),
+      singboxUrl: _normalizeSubscriptionUrl(
+        json['singboxUrl']?.toString() ?? json['singbox_url']?.toString() ?? '',
+        baseUrl: baseUrl,
+      ),
       universalUrl: _normalizeSubscriptionUrl(
         json['universalUrl']?.toString() ?? json['universal_url']?.toString() ?? '',
+        baseUrl: baseUrl,
       ),
-      clashUrl: _normalizeSubscriptionUrl(json['clashUrl']?.toString() ?? json['clash_url']?.toString() ?? ''),
+      clashUrl: _normalizeSubscriptionUrl(
+        json['clashUrl']?.toString() ?? json['clash_url']?.toString() ?? '',
+        baseUrl: baseUrl,
+      ),
       expireTime: json['expire_time']?.toString() ?? json['expiryDate']?.toString() ?? '',
       remainingDays: _asInt(json['remaining_days'] ?? json['days_until_expire']),
       status: _asStatus(json['status']),

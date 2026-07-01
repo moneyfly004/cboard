@@ -278,6 +278,45 @@ void main() {
     expect(subscriptions.single.canImport, isTrue);
   });
 
+  test('AccountApi expands raw dashboard token with configured API base URL', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://client.example.com/api/v1'))
+      ..httpClientAdapter = _JsonAdapter({
+        'data': {
+          'user_info': {'id': 9, 'username': 'alice'},
+          'subscription': {
+            'subscription_url': 'dashboard-token',
+            'status': 'active',
+            'is_active': true,
+            'days_until_expire': 30,
+          },
+        },
+      });
+    final api = AccountApi(dio: dio);
+
+    final dashboard = await api.getDashboard('access-token');
+
+    expect(
+      dashboard.subscription?.importUrl,
+      'https://client.example.com/api/v1/client/subscribe?token=dashboard-token',
+    );
+    expect(dashboard.subscription?.canImport, isTrue);
+  });
+
+  test('AccountApi expands raw subscription model token with configured API base URL', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://client.example.com/api/v1'))
+      ..httpClientAdapter = _JsonAdapter({
+        'data': [
+          {'subscription_url': 'model-token', 'status': 'active', 'is_active': true, 'days_until_expire': 30},
+        ],
+      });
+    final api = AccountApi(dio: dio);
+
+    final subscriptions = await api.getSubscriptions('access-token');
+
+    expect(subscriptions.single.importUrl, 'https://client.example.com/api/v1/client/subscribe?token=model-token');
+    expect(subscriptions.single.canImport, isTrue);
+  });
+
   test('AccountApi parses backend paginated orders response', () async {
     final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))
       ..httpClientAdapter = _JsonAdapter({
