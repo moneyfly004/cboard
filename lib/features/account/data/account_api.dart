@@ -141,7 +141,7 @@ class AccountApi {
     final payload = _payload(data);
     final orders = payload['orders'];
     if (orders is List) {
-      return orders.whereType<Map<String, dynamic>>().map(AccountOrder.fromJson).toList();
+      return _mapList(orders).map(AccountOrder.fromJson).toList();
     }
     return const [];
   }
@@ -225,18 +225,18 @@ class AccountApi {
   List<Map<String, dynamic>> _listPayload(Map<String, dynamic> data) {
     final payload = data['data'];
     if (payload is List) {
-      return payload.whereType<Map<String, dynamic>>().toList();
+      return _mapList(payload);
     }
     if (payload is Map) {
       final payloadMap = payload.cast<String, dynamic>();
       final nestedList = _firstListValue(payloadMap, const ['subscriptions', 'packages', 'items', 'records', 'list']);
       if (nestedList != null) {
-        return nestedList.whereType<Map<String, dynamic>>().toList();
+        return _mapList(nestedList);
       }
     }
     final rootList = _firstListValue(data, const ['subscriptions', 'packages', 'items', 'records', 'list']);
     if (rootList != null) {
-      return rootList.whereType<Map<String, dynamic>>().toList();
+      return _mapList(rootList);
     }
     return const [];
   }
@@ -258,6 +258,10 @@ class AccountApi {
     }
     return fallback;
   }
+}
+
+List<Map<String, dynamic>> _mapList(List<dynamic> values) {
+  return values.whereType<Map>().map((value) => value.cast<String, dynamic>()).toList();
 }
 
 class AccountAuthResponse {
@@ -374,9 +378,7 @@ class AccountDashboard {
     return AccountDashboard(
       user: AccountUser.fromJson(userJson),
       subscription: subscription,
-      recentOrders: rawOrders is List
-          ? rawOrders.whereType<Map<String, dynamic>>().map(AccountOrder.fromJson).toList()
-          : const [],
+      recentOrders: rawOrders is List ? _mapList(rawOrders).map(AccountOrder.fromJson).toList() : const [],
       totalSpent: _asDouble(
         (json['statistics'] as Map?)?['total_spent'] ?? statJson?['total_spent'] ?? json['total_spent'],
       ),

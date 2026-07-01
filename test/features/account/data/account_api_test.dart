@@ -114,6 +114,20 @@ void main() {
     expect(dashboard.totalSpent, 12.5);
   });
 
+  test('AccountDashboard keeps recent orders from generic map entries', () {
+    final dashboard = AccountDashboard.fromJson({
+      'user_info': {'id': 9, 'username': 'alice'},
+      'orders': <dynamic>[
+        <dynamic, dynamic>{'id': 7, 'order_no': 'ORD007', 'final_amount': '6.5', 'status': 'paid'},
+      ],
+    });
+
+    expect(dashboard.recentOrders, hasLength(1));
+    expect(dashboard.recentOrders.single.id, 7);
+    expect(dashboard.recentOrders.single.orderNo, 'ORD007');
+    expect(dashboard.recentOrders.single.amount, 6.5);
+  });
+
   test('AccountSubscription parses backend expired flag', () {
     final subscription = AccountSubscription.fromJson({
       'universal_url': 'https://dy.moneyfly.top/api/v1/client/subscribe?token=expired-token',
@@ -145,6 +159,29 @@ void main() {
     expect(subscriptions, hasLength(1));
     expect(subscriptions.single.importUrl, subscriptionUrl);
     expect(subscriptions.single.canImport, isTrue);
+  });
+
+  test('AccountApi parses backend paginated orders response', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))
+      ..httpClientAdapter = _JsonAdapter({
+        'data': {
+          'orders': [
+            {'id': 15, 'order_no': 'ORD015', 'package_name': 'Pro', 'final_amount': '19.9', 'status': 'paid'},
+          ],
+          'total': 1,
+          'page': 1,
+          'size': 20,
+          'pages': 1,
+        },
+      });
+    final api = AccountApi(dio: dio);
+
+    final orders = await api.getOrders('access-token');
+
+    expect(orders, hasLength(1));
+    expect(orders.single.orderNo, 'ORD015');
+    expect(orders.single.packageName, 'Pro');
+    expect(orders.single.amount, 19.9);
   });
 }
 
