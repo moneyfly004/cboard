@@ -380,7 +380,7 @@ class AccountNotifier extends StateNotifier<AccountState> {
     final devices = results[4] as AccountDevicesResult;
     state = state.copyWith(
       user: dashboard.user,
-      dashboard: dashboard,
+      dashboard: _visibleDashboardFor(dashboard),
       packages: results[1] as List<AccountPackage>,
       paymentMethods: results[2] as List<PaymentMethod>,
       orders: results[3] as List<AccountOrder>,
@@ -403,7 +403,7 @@ class AccountNotifier extends StateNotifier<AccountState> {
     final devices = results[1] as AccountDevicesResult;
     state = state.copyWith(
       user: dashboard.user,
-      dashboard: dashboard,
+      dashboard: _visibleDashboardFor(dashboard),
       devices: devices.devices,
       deviceTotal: devices.total,
       deviceOnline: devices.online,
@@ -412,6 +412,13 @@ class AccountNotifier extends StateNotifier<AccountState> {
       authExpired: false,
     );
     await _persistAuth(state.token, state.refreshToken, dashboard.user);
+  }
+
+  AccountDashboard _visibleDashboardFor(AccountDashboard dashboard) {
+    if (!dashboard.preserveLocalSubscription) {
+      return dashboard;
+    }
+    return state.dashboard ?? dashboard;
   }
 
   Future<void> _refreshDevicesOnly() async {
