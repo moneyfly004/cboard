@@ -351,13 +351,29 @@ class AccountDashboard {
   final bool preserveLocalSubscription;
 
   factory AccountDashboard.fromJson(Map<String, dynamic> json) {
-    final userJson = (json['user'] as Map?)?.cast<String, dynamic>() ?? json;
+    final userJson =
+        (json['user'] as Map?)?.cast<String, dynamic>() ?? (json['user_info'] as Map?)?.cast<String, dynamic>() ?? json;
     final subscriptionJson = (json['subscription'] as Map?)?.cast<String, dynamic>();
+    final rawSubscriptions = json['subscriptions'];
     final rawOrders = json['orders'];
     final statJson = (json['stat'] as Map?)?.cast<String, dynamic>();
+    AccountSubscription? subscription;
+    if (subscriptionJson != null) {
+      subscription = AccountSubscription.fromJson(subscriptionJson);
+    } else if (rawSubscriptions is List) {
+      for (final rawSubscription in rawSubscriptions.whereType<Map>()) {
+        final candidate = AccountSubscription.fromJson(rawSubscription.cast<String, dynamic>());
+        if (subscription == null || candidate.canImport) {
+          subscription = candidate;
+        }
+        if (candidate.canImport) {
+          break;
+        }
+      }
+    }
     return AccountDashboard(
       user: AccountUser.fromJson(userJson),
-      subscription: subscriptionJson == null ? null : AccountSubscription.fromJson(subscriptionJson),
+      subscription: subscription,
       recentOrders: rawOrders is List
           ? rawOrders.whereType<Map<String, dynamic>>().map(AccountOrder.fromJson).toList()
           : const [],

@@ -87,6 +87,33 @@ void main() {
     expect(dashboard.subscription?.canImport, isTrue);
   });
 
+  test('AccountDashboard parses backend user_info and subscriptions list', () {
+    const subscriptionUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=dashboard-token';
+    final dashboard = AccountDashboard.fromJson({
+      'user_info': {'id': 9, 'username': 'alice', 'email': 'alice@example.com'},
+      'subscriptions': [
+        {
+          'subscription_url': 'https://dy.moneyfly.top/api/v1/client/subscribe?token=expired-token',
+          'status': 'active',
+          'is_active': true,
+          'is_expired': true,
+        },
+        {'subscription_url': subscriptionUrl, 'status': 'active', 'is_active': true, 'days_until_expire': 30},
+      ],
+      'orders': [
+        {'id': 1, 'order_no': 'ORD001'},
+      ],
+      'statistics': {'total_spent': 12.5},
+    });
+
+    expect(dashboard.user.id, 9);
+    expect(dashboard.user.email, 'alice@example.com');
+    expect(dashboard.subscription?.importUrl, subscriptionUrl);
+    expect(dashboard.subscription?.canImport, isTrue);
+    expect(dashboard.recentOrders, hasLength(1));
+    expect(dashboard.totalSpent, 12.5);
+  });
+
   test('AccountSubscription parses backend expired flag', () {
     final subscription = AccountSubscription.fromJson({
       'universal_url': 'https://dy.moneyfly.top/api/v1/client/subscribe?token=expired-token',
