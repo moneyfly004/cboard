@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/features/account/notifier/account_notifier.dart';
+import 'package:hiddify/features/account/widget/account_subscription_sync_feedback.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 class AddProfileModal extends ConsumerWidget {
@@ -38,13 +39,7 @@ class AddProfileModal extends ConsumerWidget {
               onPressed: state.loading || !state.isAuthenticated
                   ? null
                   : () async {
-                      final imported = await ref.read(accountNotifierProvider.notifier).syncSubscription();
-                      if (!imported) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(const SnackBar(content: Text('未找到可同步的账户订阅，请确认套餐已生效')));
-                        }
+                      if (!await syncAccountSubscriptionWithFeedback(context, ref)) {
                         return;
                       }
                       if (context.mounted && context.canPop()) {

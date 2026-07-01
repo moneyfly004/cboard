@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/model/constants.dart';
 import 'package:hiddify/features/account/data/account_api.dart';
 import 'package:hiddify/features/account/notifier/account_notifier.dart';
+import 'package:hiddify/features/account/widget/account_subscription_sync_feedback.dart';
 import 'package:hiddify/utils/platform_utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -905,7 +906,7 @@ class _SubscriptionPanel extends ConsumerWidget {
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 520;
               final syncButton = FilledButton.icon(
-                onPressed: syncing || !canImport ? null : () => _syncAccountSubscription(context, ref),
+                onPressed: syncing || !canImport ? null : () => syncAccountSubscriptionWithFeedback(context, ref),
                 icon: syncing
                     ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.cloud_upload_rounded),
@@ -1667,7 +1668,7 @@ class _SubscriptionSyncStatus extends ConsumerWidget {
               ),
             ),
             OutlinedButton.icon(
-              onPressed: syncing ? null : () => _syncAccountSubscription(context, ref),
+              onPressed: syncing ? null : () => syncAccountSubscriptionWithFeedback(context, ref),
               icon: const Icon(Icons.update_rounded),
               label: const Text('同步'),
             ),
@@ -1954,18 +1955,6 @@ Future<void> _guard(BuildContext context, Future<void> Function() action, {Strin
   try {
     await action();
     if (context.mounted && successMessage != null) _showSnack(context, successMessage);
-  } on AccountApiException catch (error) {
-    if (context.mounted) _showSnack(context, error.message);
-  } catch (error) {
-    if (context.mounted) _showSnack(context, error.toString());
-  }
-}
-
-Future<void> _syncAccountSubscription(BuildContext context, WidgetRef ref) async {
-  try {
-    final imported = await ref.read(accountNotifierProvider.notifier).syncSubscription();
-    if (!context.mounted) return;
-    _showSnack(context, imported ? '订阅已同步' : '未找到可同步的账户订阅，请确认套餐已生效');
   } on AccountApiException catch (error) {
     if (context.mounted) _showSnack(context, error.message);
   } catch (error) {

@@ -7,6 +7,7 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
 import 'package:hiddify/core/widget/responsive_page.dart';
 import 'package:hiddify/features/account/notifier/account_notifier.dart';
+import 'package:hiddify/features/account/widget/account_subscription_sync_feedback.dart';
 import 'package:hiddify/features/home/widget/connection_button.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/widget/profile_tile.dart';
@@ -58,7 +59,7 @@ class HomePage extends HookConsumerWidget {
             onPressed: accountState.loading
                 ? null
                 : canSyncAccountSubscription
-                ? () => ref.read(accountNotifierProvider.notifier).syncSubscription()
+                ? () => syncAccountSubscriptionWithFeedback(context, ref)
                 : () => context.goNamed('account'),
             icon: accountState.loading
                 ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
@@ -211,7 +212,7 @@ class _AccountSubscriptionOverview extends ConsumerWidget {
                   onPressed: state.loading
                       ? null
                       : state.isAuthenticated
-                      ? () => ref.read(accountNotifierProvider.notifier).syncSubscription()
+                      ? () => syncAccountSubscriptionWithFeedback(context, ref)
                       : () => context.goNamed('account'),
                   icon: state.syncingSubscription
                       ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))

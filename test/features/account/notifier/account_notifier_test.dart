@@ -188,9 +188,10 @@ void main() {
 
     expect(api.dashboardTokens, ['fresh-access-token']);
     api.releaseDashboards();
-    await Future.wait([firstSync, secondSync]);
+    final results = await Future.wait([firstSync, secondSync]);
 
     expect(sync.syncCalls, 1);
+    expect(results, [true, true]);
   });
 
   test('expired refresh token marks auth expired and clears local subscription', () async {

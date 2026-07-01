@@ -6,6 +6,7 @@ import 'package:hiddify/core/model/failures.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/widget/responsive_page.dart';
 import 'package:hiddify/features/account/notifier/account_notifier.dart';
+import 'package:hiddify/features/account/widget/account_subscription_sync_feedback.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
 import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
@@ -48,7 +49,7 @@ class ProfilesPage extends HookConsumerWidget {
         onPressed: accountState.loading
             ? null
             : accountState.isAuthenticated
-            ? () async => await ref.read(accountNotifierProvider.notifier).syncSubscription()
+            ? () => syncAccountSubscriptionWithFeedback(context, ref)
             : () => context.goNamed('account'),
         label: Text(accountState.isAuthenticated ? '同步账户订阅' : '登录账户'),
         icon: accountState.loading

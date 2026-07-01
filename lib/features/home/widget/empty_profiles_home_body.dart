@@ -3,6 +3,7 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/features/account/notifier/account_notifier.dart';
+import 'package:hiddify/features/account/widget/account_subscription_sync_feedback.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 class EmptyProfilesHomeBody extends HookConsumerWidget {
@@ -24,7 +25,7 @@ class EmptyProfilesHomeBody extends HookConsumerWidget {
             onPressed: accountState.loading
                 ? null
                 : accountState.isAuthenticated
-                ? () => ref.read(accountNotifierProvider.notifier).syncSubscription()
+                ? () => syncAccountSubscriptionWithFeedback(context, ref)
                 : () => context.goNamed('account'),
             child: Text(accountState.isAuthenticated ? '同步账户订阅' : '登录账户'),
           ),

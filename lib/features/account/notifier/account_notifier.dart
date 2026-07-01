@@ -112,6 +112,7 @@ class AccountNotifier extends StateNotifier<AccountState> {
   final AccountSubscriptionSync _subscriptionSync;
   final SharedPreferences _preferences;
   Future<void>? _accountRefreshOperation;
+  Future<bool>? _subscriptionSyncOperation;
   Future<String>? _tokenRefreshOperation;
 
   static const _tokenKey = 'cboard_account_access_token';
@@ -204,9 +205,25 @@ class AccountNotifier extends StateNotifier<AccountState> {
     await _runAccountRefresh(_refreshAccountData);
   }
 
-  Future<bool> syncSubscription() async {
+  Future<bool> syncSubscription() {
+    final existingOperation = _subscriptionSyncOperation;
+    if (existingOperation != null) {
+      return existingOperation;
+    }
+    final operation = _syncSubscriptionOnce();
+    _subscriptionSyncOperation = operation;
+    return operation.whenComplete(() {
+      if (identical(_subscriptionSyncOperation, operation)) {
+        _subscriptionSyncOperation = null;
+      }
+    });
+  }
+
+  Future<bool> _syncSubscriptionOnce() async {
     var imported = false;
+    var refreshed = false;
     await _runAccountRefresh(() async {
+      refreshed = true;
       final dashboard = await _withAuthenticatedToken(_loadDashboardWithSubscriptionFallback);
       state = state.copyWith(
         user: dashboard.user,
@@ -216,6 +233,9 @@ class AccountNotifier extends StateNotifier<AccountState> {
       await _persistAuth(state.token, state.refreshToken, dashboard.user);
       imported = await _syncSubscription(dashboard, successMessage: '订阅已同步');
     });
+    if (!refreshed) {
+      return state.dashboard?.subscription?.canImport == true;
+    }
     return imported;
   }
 

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/router/go_router/go_router_notifier.dart';
 import 'package:hiddify/features/account/notifier/account_notifier.dart';
+import 'package:hiddify/features/account/widget/account_subscription_sync_feedback.dart';
 import 'package:hiddify/features/window/notifier/window_notifier.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -68,7 +69,7 @@ class ShortcutWrapper extends HookConsumerWidget {
                   context.goNamed('account');
                   return null;
                 }
-                await ref.read(accountNotifierProvider.notifier).syncSubscription();
+                await syncAccountSubscriptionWithFeedback(context, ref);
               }
               return null;
             },
