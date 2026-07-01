@@ -6,7 +6,6 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/theme/theme_extensions.dart';
 import 'package:hiddify/core/widget/animated_text.dart';
-import 'package:hiddify/features/account/notifier/account_notifier.dart';
 import 'package:hiddify/features/account/widget/account_subscription_sync_feedback.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
@@ -120,12 +119,7 @@ class ConnectionButton extends HookConsumerWidget {
           return await ref.read(connectionNotifierProvider.notifier).reconnect(activeProfile);
         },
         AsyncData(value: Disconnected()) || AsyncError() => () async {
-          if (ref.read(activeProfileProvider).valueOrNull == null) {
-            await ref.read(dialogNotifierProvider.notifier).showNoActiveProfile();
-            if (!context.mounted) return;
-            if (ref.read(accountNotifierProvider).isAuthenticated) {
-              await syncAccountSubscriptionWithFeedback(context, ref);
-            }
+          if (await ensureAccountSubscriptionProfileWithFeedback(context, ref) == null) {
             return;
           }
           if (await ref.read(dialogNotifierProvider.notifier).showExperimentalFeatureNotice()) {
