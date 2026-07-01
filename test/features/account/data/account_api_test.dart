@@ -114,6 +114,21 @@ void main() {
     expect(dashboard.totalSpent, 12.5);
   });
 
+  test('AccountDashboard expands raw subscription list token for import', () {
+    final dashboard = AccountDashboard.fromJson({
+      'user_info': {'id': 9, 'username': 'alice'},
+      'subscriptions': [
+        {'subscription_url': 'raw-dashboard-token', 'status': 'active', 'is_active': true, 'days_until_expire': 30},
+      ],
+    });
+
+    expect(
+      dashboard.subscription?.importUrl,
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=raw-dashboard-token',
+    );
+    expect(dashboard.subscription?.canImport, isTrue);
+  });
+
   test('AccountDashboard keeps recent orders from generic map entries', () {
     final dashboard = AccountDashboard.fromJson({
       'user_info': {'id': 9, 'username': 'alice'},
@@ -139,6 +154,18 @@ void main() {
 
     expect(subscription.isExpired, isTrue);
     expect(subscription.canImport, isFalse);
+  });
+
+  test('AccountSubscription expands raw backend subscription token', () {
+    final subscription = AccountSubscription.fromJson({
+      'subscription_url': 'raw-model-token',
+      'status': 'active',
+      'is_active': true,
+      'days_until_expire': 30,
+    });
+
+    expect(subscription.importUrl, 'https://dy.moneyfly.top/api/v1/client/subscribe?token=raw-model-token');
+    expect(subscription.canImport, isTrue);
   });
 
   test('AccountSubscription prefers backend sing-box subscribe url for import', () {

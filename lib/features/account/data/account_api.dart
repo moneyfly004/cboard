@@ -267,18 +267,11 @@ class AccountApi {
 
   Map<String, dynamic> _normalizeSubscriptionPayload(Map<String, dynamic> json) {
     final subscriptionUrl = json['subscription_url']?.toString().trim() ?? '';
-    if (subscriptionUrl.isEmpty || Uri.tryParse(subscriptionUrl)?.hasScheme == true) {
+    final normalizedSubscriptionUrl = _normalizeSubscriptionUrl(subscriptionUrl, baseUrl: _dio.options.baseUrl);
+    if (normalizedSubscriptionUrl == subscriptionUrl) {
       return json;
     }
-    return {...json, 'subscription_url': _clientSubscribeUrl(subscriptionUrl)};
-  }
-
-  String _clientSubscribeUrl(String token) {
-    final baseUri = Uri.parse(_dio.options.baseUrl);
-    final normalizedBasePath = baseUri.path.endsWith('/')
-        ? baseUri.path.substring(0, baseUri.path.length - 1)
-        : baseUri.path;
-    return baseUri.replace(path: '$normalizedBasePath/client/subscribe', queryParameters: {'token': token}).toString();
+    return {...json, 'subscription_url': normalizedSubscriptionUrl};
   }
 
   String _messageFromData(Map<String, dynamic> data, {required String fallback}) {
@@ -516,10 +509,12 @@ class AccountSubscription {
     return AccountSubscription(
       id: _asInt(json['id'] ?? json['subscription_id']),
       packageName: json['package_name']?.toString() ?? '',
-      subscriptionUrl: json['subscription_url']?.toString() ?? '',
-      singboxUrl: json['singboxUrl']?.toString() ?? json['singbox_url']?.toString() ?? '',
-      universalUrl: json['universalUrl']?.toString() ?? json['universal_url']?.toString() ?? '',
-      clashUrl: json['clashUrl']?.toString() ?? json['clash_url']?.toString() ?? '',
+      subscriptionUrl: _normalizeSubscriptionUrl(json['subscription_url']?.toString() ?? ''),
+      singboxUrl: _normalizeSubscriptionUrl(json['singboxUrl']?.toString() ?? json['singbox_url']?.toString() ?? ''),
+      universalUrl: _normalizeSubscriptionUrl(
+        json['universalUrl']?.toString() ?? json['universal_url']?.toString() ?? '',
+      ),
+      clashUrl: _normalizeSubscriptionUrl(json['clashUrl']?.toString() ?? json['clash_url']?.toString() ?? ''),
       expireTime: json['expire_time']?.toString() ?? json['expiryDate']?.toString() ?? '',
       remainingDays: _asInt(json['remaining_days'] ?? json['days_until_expire']),
       status: _asStatus(json['status']),
@@ -901,6 +896,22 @@ bool _asBool(Object? value, {bool fallback = false}) {
 
 String _asStatus(Object? value) {
   return value?.toString().trim().toLowerCase() ?? '';
+}
+
+String _normalizeSubscriptionUrl(String value, {String baseUrl = kCBoardApiBaseUrl}) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty || Uri.tryParse(trimmed)?.hasScheme == true) {
+    return trimmed;
+  }
+  return _clientSubscribeUrl(trimmed, baseUrl: baseUrl);
+}
+
+String _clientSubscribeUrl(String token, {required String baseUrl}) {
+  final baseUri = Uri.parse(baseUrl);
+  final normalizedBasePath = baseUri.path.endsWith('/')
+      ? baseUri.path.substring(0, baseUri.path.length - 1)
+      : baseUri.path;
+  return baseUri.replace(path: '$normalizedBasePath/client/subscribe', queryParameters: {'token': token}).toString();
 }
 
 int? _readOptionalInt(Map<String, dynamic> json, List<String> keys) {
