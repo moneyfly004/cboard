@@ -141,6 +141,20 @@ void main() {
     expect(subscription.canImport, isFalse);
   });
 
+  test('AccountSubscription prefers backend sing-box subscribe url for import', () {
+    final subscription = AccountSubscription.fromJson({
+      'subscription_url': 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=clash',
+      'universal_url': 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
+      'singbox_url': 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox',
+      'status': 'active',
+      'is_active': true,
+      'days_until_expire': 30,
+    });
+
+    expect(subscription.importUrl, 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox');
+    expect(subscription.canImport, isTrue);
+  });
+
   test('AccountApi parses nested subscriptions list response', () async {
     const subscriptionUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=active-token';
     final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))

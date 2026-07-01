@@ -427,6 +427,7 @@ class AccountSubscription {
     this.id = 0,
     this.packageName = '',
     this.subscriptionUrl = '',
+    this.singboxUrl = '',
     this.universalUrl = '',
     this.clashUrl = '',
     this.expireTime = '',
@@ -442,6 +443,7 @@ class AccountSubscription {
   final int id;
   final String packageName;
   final String subscriptionUrl;
+  final String singboxUrl;
   final String universalUrl;
   final String clashUrl;
   final String expireTime;
@@ -454,6 +456,9 @@ class AccountSubscription {
   final bool isExpired;
 
   String get importUrl {
+    if (_isSupportedImportUrl(singboxUrl)) {
+      return singboxUrl;
+    }
     if (_isSupportedImportUrl(universalUrl)) {
       return universalUrl;
     }
@@ -496,6 +501,7 @@ class AccountSubscription {
       id: _asInt(json['id'] ?? json['subscription_id']),
       packageName: json['package_name']?.toString() ?? '',
       subscriptionUrl: json['subscription_url']?.toString() ?? '',
+      singboxUrl: json['singboxUrl']?.toString() ?? json['singbox_url']?.toString() ?? '',
       universalUrl: json['universalUrl']?.toString() ?? json['universal_url']?.toString() ?? '',
       clashUrl: json['clashUrl']?.toString() ?? json['clash_url']?.toString() ?? '',
       expireTime: json['expire_time']?.toString() ?? json['expiryDate']?.toString() ?? '',

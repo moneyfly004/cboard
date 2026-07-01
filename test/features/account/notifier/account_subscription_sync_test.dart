@@ -350,6 +350,34 @@ void main() {
     expect(repo.upsertedUserOverrides, [AccountSubscriptionSync.accountProfileOverride]);
     expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, accountUrl);
   });
+
+  test('sync imports backend sing-box subscribe url when available', () async {
+    const singboxUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox';
+    final repo = _FakeProfileRepository([]);
+    final container = ProviderContainer(
+      overrides: [profileRepositoryProvider.overrideWith((ref) => Future.value(repo))],
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(accountSubscriptionSyncProvider)
+        .sync(
+          const AccountDashboard(
+            subscription: AccountSubscription(
+              id: 1,
+              packageName: 'VIP',
+              singboxUrl: singboxUrl,
+              universalUrl: 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
+              status: 'active',
+              remainingDays: 30,
+              isActive: true,
+            ),
+          ),
+        );
+
+    expect(repo.upsertedUrls, [singboxUrl]);
+    expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, singboxUrl);
+  });
 }
 
 class _FakeProfileRepository implements ProfileRepository {
