@@ -374,6 +374,7 @@ class AccountSubscription {
     this.currentDevices = 0,
     this.onlineDevices = 0,
     this.isActive = false,
+    this.isExpired = false,
   });
 
   final int id;
@@ -388,6 +389,7 @@ class AccountSubscription {
   final int currentDevices;
   final int onlineDevices;
   final bool isActive;
+  final bool isExpired;
 
   String get importUrl {
     if (_isSupportedImportUrl(universalUrl)) {
@@ -400,7 +402,7 @@ class AccountSubscription {
   }
 
   bool get canImport {
-    if (!isActive || importUrl.isEmpty) {
+    if (!isActive || isExpired || importUrl.isEmpty) {
       return false;
     }
     if (remainingDays < 0) {
@@ -441,6 +443,7 @@ class AccountSubscription {
       currentDevices: _asInt(json['current_devices'] ?? json['currentDevices']),
       onlineDevices: _asInt(json['online_devices'] ?? json['currentDevices']),
       isActive: json['is_active'] == true || json['status'] == 'active',
+      isExpired: _asBool(json['is_expired']),
     );
   }
 }

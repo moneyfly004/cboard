@@ -266,6 +266,12 @@ void main() {
         remainingDays: 30,
       )
       ..subscriptions = const [
+        AccountSubscription(
+          universalUrl: 'https://dy.moneyfly.top/api/v1/client/subscribe?token=expired-token',
+          status: 'active',
+          isActive: true,
+          isExpired: true,
+        ),
         AccountSubscription(universalUrl: fallbackUrl, status: 'active', remainingDays: 30, isActive: true),
       ];
 

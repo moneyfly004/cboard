@@ -71,13 +71,27 @@ void main() {
         ).withSubscriptionFallback(const [
           AccountSubscription(
             universalUrl: 'https://dy.moneyfly.top/api/v1/client/subscribe?token=expired-token',
-            status: 'expired',
-            remainingDays: -1,
+            status: 'active',
+            isActive: true,
+            isExpired: true,
           ),
           AccountSubscription(universalUrl: fallbackUrl, status: 'active', remainingDays: 30, isActive: true),
         ]);
 
     expect(dashboard.subscription?.importUrl, fallbackUrl);
     expect(dashboard.subscription?.canImport, isTrue);
+  });
+
+  test('AccountSubscription parses backend expired flag', () {
+    final subscription = AccountSubscription.fromJson({
+      'universal_url': 'https://dy.moneyfly.top/api/v1/client/subscribe?token=expired-token',
+      'status': 'active',
+      'is_active': true,
+      'is_expired': true,
+      'days_until_expire': 0,
+    });
+
+    expect(subscription.isExpired, isTrue);
+    expect(subscription.canImport, isFalse);
   });
 }
