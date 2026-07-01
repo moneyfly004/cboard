@@ -293,14 +293,21 @@ void main() {
 
     final preferences = await SharedPreferences.getInstance();
     final api = _RefreshingAccountApi()
-      ..subscriptionsFailure = AccountApiException('server unavailable', statusCode: 500);
+      ..dashboardSubscription = const AccountSubscription(
+        universalUrl: 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
+        status: 'active',
+        remainingDays: 30,
+        isActive: true,
+      );
     final sync = _FakeSubscriptionSync();
 
     final notifier = AccountNotifier(api, sync, preferences);
     await pumpEventQueue();
     api.reset();
     sync.reset();
-    api.subscriptionsFailure = AccountApiException('server unavailable', statusCode: 500);
+    api
+      ..dashboardSubscription = null
+      ..subscriptionsFailure = AccountApiException('server unavailable', statusCode: 500);
 
     await notifier.syncSubscription();
 
@@ -309,7 +316,11 @@ void main() {
     expect(sync.syncCalls, 1);
     expect(sync.syncedDashboards.single?.preserveLocalSubscription, isTrue);
     expect(sync.syncedSubscriptions.single, isNull);
-    expect(notifier.state.dashboard?.preserveLocalSubscription, isTrue);
+    expect(notifier.state.dashboard?.preserveLocalSubscription, isFalse);
+    expect(
+      notifier.state.dashboard?.subscription?.importUrl,
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
+    );
   });
 }
 
@@ -342,7 +353,12 @@ class _RefreshingAccountApi extends AccountApi {
     refreshTokenCalls = 0;
     _expireFreshTokenOnce = false;
     holdDashboards = false;
-    dashboardSubscription = null;
+    dashboardSubscription = const AccountSubscription(
+      universalUrl: 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
+      status: 'active',
+      remainingDays: 30,
+      isActive: true,
+    );
     subscriptions = const [];
     refreshFailure = null;
     loginFailure = null;
@@ -400,9 +416,11 @@ class _RefreshingAccountApi extends AccountApi {
       _expireFreshTokenOnce = false;
       throw AccountApiException('expired', statusCode: 401);
     }
-    return const AccountDashboard(
-      user: AccountUser(id: 1, username: 'fresh', email: 'fresh@example.com'),
-    ).withSubscriptionFallback(dashboardSubscription == null ? const [] : [dashboardSubscription!]);
+    final subscription = dashboardSubscription;
+    return AccountDashboard(
+      user: const AccountUser(id: 1, username: 'fresh', email: 'fresh@example.com'),
+      subscription: subscription,
+    );
   }
 
   @override

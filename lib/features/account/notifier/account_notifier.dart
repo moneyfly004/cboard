@@ -207,7 +207,11 @@ class AccountNotifier extends StateNotifier<AccountState> {
   Future<void> syncSubscription() async {
     await _runAccountRefresh(() async {
       final dashboard = await _withAuthenticatedToken(_loadDashboardWithSubscriptionFallback);
-      state = state.copyWith(user: dashboard.user, dashboard: dashboard, authExpired: false);
+      state = state.copyWith(
+        user: dashboard.user,
+        dashboard: dashboard.preserveLocalSubscription ? state.dashboard : dashboard,
+        authExpired: false,
+      );
       await _persistAuth(state.token, state.refreshToken, dashboard.user);
       await _syncSubscription(dashboard, successMessage: '订阅已同步');
     });
@@ -217,7 +221,11 @@ class AccountNotifier extends StateNotifier<AccountState> {
     await _runAccountRefresh(() async {
       state = state.copyWith(syncingSubscription: true);
       final dashboard = await _withAuthenticatedToken(_loadDashboardWithSubscriptionFallback);
-      state = state.copyWith(user: dashboard.user, dashboard: dashboard, authExpired: false);
+      state = state.copyWith(
+        user: dashboard.user,
+        dashboard: dashboard.preserveLocalSubscription ? state.dashboard : dashboard,
+        authExpired: false,
+      );
       await _persistAuth(state.token, state.refreshToken, dashboard.user);
       await _subscriptionSync.refreshActiveSubscription(dashboard);
       state = state.copyWith(syncingSubscription: false, message: '订阅已更新');
@@ -228,7 +236,11 @@ class AccountNotifier extends StateNotifier<AccountState> {
     if (!_hasAuthCredentials) return;
     await _runAccountRefresh(() async {
       final dashboard = await _withAuthenticatedToken(_loadDashboardWithSubscriptionFallback);
-      state = state.copyWith(user: dashboard.user, dashboard: dashboard, authExpired: false);
+      state = state.copyWith(
+        user: dashboard.user,
+        dashboard: dashboard.preserveLocalSubscription ? state.dashboard : dashboard,
+        authExpired: false,
+      );
       await _persistAuth(state.token, state.refreshToken, dashboard.user);
       await _subscriptionSync.refreshActiveSubscription(dashboard);
     });
