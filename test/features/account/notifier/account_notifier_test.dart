@@ -194,6 +194,67 @@ void main() {
     expect(results, [true, true]);
   });
 
+  test('manual sync runs after unrelated account refresh instead of reporting stale success', () async {
+    const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
+    SharedPreferences.setMockInitialValues({
+      'cboard_account_access_token': 'fresh-access-token',
+      'cboard_account_refresh_token': 'fresh-refresh-token',
+      'cboard_account_user': jsonEncode(savedUser.toJson()),
+    });
+
+    final preferences = await SharedPreferences.getInstance();
+    final api = _RefreshingAccountApi();
+    final sync = _FakeSubscriptionSync();
+
+    final notifier = AccountNotifier(api, sync, preferences);
+    await pumpEventQueue();
+    api.reset();
+    sync.reset();
+    api.holdDevices = true;
+
+    final deviceRefresh = notifier.refreshDevices();
+    await pumpEventQueue();
+    final accountSync = notifier.syncSubscription();
+    await pumpEventQueue();
+
+    expect(api.deviceTokens, ['fresh-access-token']);
+    expect(api.dashboardTokens, isEmpty);
+    expect(sync.syncCalls, 0);
+
+    api.releaseDevices();
+    await deviceRefresh;
+    final imported = await accountSync;
+
+    expect(imported, isTrue);
+    expect(api.dashboardTokens, ['fresh-access-token']);
+    expect(sync.syncCalls, 1);
+    expect(sync.syncedSubscriptions.single?.importUrl, contains('account-token'));
+  });
+
+  test('payment refresh reports whether a subscription was imported', () async {
+    const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
+    SharedPreferences.setMockInitialValues({
+      'cboard_account_access_token': 'fresh-access-token',
+      'cboard_account_refresh_token': 'fresh-refresh-token',
+      'cboard_account_user': jsonEncode(savedUser.toJson()),
+    });
+
+    final preferences = await SharedPreferences.getInstance();
+    final api = _RefreshingAccountApi();
+    final sync = _FakeSubscriptionSync();
+
+    final notifier = AccountNotifier(api, sync, preferences);
+    await pumpEventQueue();
+    api.reset();
+    sync.reset();
+
+    final imported = await notifier.refreshAfterPayment();
+
+    expect(imported, isTrue);
+    expect(sync.syncCalls, 1);
+    expect(sync.syncedSubscriptions.single?.importUrl, contains('account-token'));
+  });
+
   test('expired refresh token marks auth expired and clears local subscription', () async {
     const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
     SharedPreferences.setMockInitialValues({
@@ -400,13 +461,14 @@ void main() {
         ..dashboardSubscription = null
         ..subscriptions = const [];
 
-      await notifier.refreshAfterPayment();
+      final imported = await notifier.refreshAfterPayment();
 
       expect(api.dashboardTokens, ['fresh-access-token']);
       expect(api.subscriptionTokens, ['fresh-access-token']);
       expect(sync.syncCalls, 1);
       expect(sync.syncedDashboards.single?.preserveLocalSubscription, isTrue);
       expect(sync.syncedSubscriptions.single, isNull);
+      expect(imported, isFalse);
       expect(
         notifier.state.dashboard?.subscription?.importUrl,
         'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
@@ -491,12 +553,14 @@ class _RefreshingAccountApi extends AccountApi {
   int refreshTokenCalls = 0;
   bool _expireFreshTokenOnce = false;
   bool holdDashboards = false;
+  bool holdDevices = false;
   AccountSubscription? dashboardSubscription;
   List<AccountSubscription> subscriptions = const [];
   AccountApiException? refreshFailure;
   AccountApiException? loginFailure;
   AccountApiException? subscriptionsFailure;
   Completer<void>? _dashboardRelease;
+  Completer<void>? _devicesRelease;
   bool omitPayOrderNo = false;
 
   void reset() {
@@ -514,6 +578,7 @@ class _RefreshingAccountApi extends AccountApi {
     refreshTokenCalls = 0;
     _expireFreshTokenOnce = false;
     holdDashboards = false;
+    holdDevices = false;
     dashboardSubscription = const AccountSubscription(
       universalUrl: 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
       status: 'active',
@@ -525,6 +590,7 @@ class _RefreshingAccountApi extends AccountApi {
     loginFailure = null;
     subscriptionsFailure = null;
     _dashboardRelease = null;
+    _devicesRelease = null;
     omitPayOrderNo = false;
   }
 
@@ -535,6 +601,11 @@ class _RefreshingAccountApi extends AccountApi {
   void releaseDashboards() {
     _dashboardRelease?.complete();
     _dashboardRelease = null;
+  }
+
+  void releaseDevices() {
+    _devicesRelease?.complete();
+    _devicesRelease = null;
   }
 
   @override
@@ -639,6 +710,10 @@ class _RefreshingAccountApi extends AccountApi {
   @override
   Future<AccountDevicesResult> getDevices(String token, {int page = 1, int size = 100}) async {
     deviceTokens.add(token);
+    if (holdDevices) {
+      _devicesRelease ??= Completer<void>();
+      await _devicesRelease!.future;
+    }
     return AccountDevicesResult(
       devices: const [AccountDevice(id: 1, deviceName: 'MacBook', deviceType: 'desktop')],
     );

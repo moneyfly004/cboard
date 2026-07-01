@@ -1145,9 +1145,9 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
       setState(() => _status = status);
       if (status.isPaid) {
         _pollTimer?.cancel();
-        await ref.read(accountNotifierProvider.notifier).refreshAfterPayment();
+        final imported = await ref.read(accountNotifierProvider.notifier).refreshAfterPayment();
         if (!mounted) return;
-        _showSnack(context, '支付成功，套餐已自动开通并同步订阅');
+        _showSnack(context, imported ? '支付成功，套餐已自动开通并同步订阅' : '支付成功，套餐已开通，暂未获取到可同步配置');
         Navigator.of(context).pop();
       } else if (status.isFinished) {
         _pollTimer?.cancel();

@@ -202,7 +202,9 @@ class AccountNotifier extends StateNotifier<AccountState> {
       await loadPublicData();
       return;
     }
-    await _runAccountRefresh(_refreshAccountData);
+    await _runAccountRefresh(() async {
+      await _refreshAccountData();
+    });
   }
 
   Future<bool> syncSubscription() {
@@ -221,21 +223,9 @@ class AccountNotifier extends StateNotifier<AccountState> {
 
   Future<bool> _syncSubscriptionOnce() async {
     var imported = false;
-    var refreshed = false;
-    await _runAccountRefresh(() async {
-      refreshed = true;
-      final dashboard = await _withAuthenticatedToken(_loadDashboardWithSubscriptionFallback);
-      state = state.copyWith(
-        user: dashboard.user,
-        dashboard: dashboard.preserveLocalSubscription ? state.dashboard : dashboard,
-        authExpired: false,
-      );
-      await _persistAuth(state.token, state.refreshToken, dashboard.user);
-      imported = await _syncSubscription(dashboard, successMessage: '订阅已同步');
+    await _runAccountRefreshAfterCurrent(() async {
+      imported = await _loadAndSyncAccountSubscription(successMessage: '订阅已同步');
     });
-    if (!refreshed) {
-      return state.dashboard?.subscription?.canImport == true;
-    }
     return imported;
   }
 
@@ -371,8 +361,12 @@ class AccountNotifier extends StateNotifier<AccountState> {
     state = state.copyWith(message: message);
   }
 
-  Future<void> refreshAfterPayment() async {
-    await refresh();
+  Future<bool> refreshAfterPayment() async {
+    var imported = false;
+    await _runAccountRefreshAfterCurrent(() async {
+      imported = await _refreshAccountData();
+    });
+    return imported;
   }
 
   Future<void> logout() async {
@@ -399,7 +393,18 @@ class AccountNotifier extends StateNotifier<AccountState> {
     }
   }
 
-  Future<void> _refreshAccountData() async {
+  Future<bool> _loadAndSyncAccountSubscription({String? successMessage}) async {
+    final dashboard = await _withAuthenticatedToken(_loadDashboardWithSubscriptionFallback);
+    state = state.copyWith(
+      user: dashboard.user,
+      dashboard: dashboard.preserveLocalSubscription ? state.dashboard : dashboard,
+      authExpired: false,
+    );
+    await _persistAuth(state.token, state.refreshToken, dashboard.user);
+    return _syncSubscription(dashboard, successMessage: successMessage);
+  }
+
+  Future<bool> _refreshAccountData() async {
     final results = await _withAuthenticatedToken(
       (token) => Future.wait<Object>([
         _loadDashboardWithSubscriptionFallback(token),
@@ -425,7 +430,7 @@ class AccountNotifier extends StateNotifier<AccountState> {
       authExpired: false,
     );
     await _persistAuth(state.token, state.refreshToken, dashboard.user);
-    await _syncSubscription(dashboard);
+    return _syncSubscription(dashboard);
   }
 
   Future<void> _refreshAccountSummaryAndDevices() async {
@@ -729,6 +734,14 @@ class AccountNotifier extends StateNotifier<AccountState> {
         _accountRefreshOperation = null;
       }
     });
+  }
+
+  Future<void> _runAccountRefreshAfterCurrent(Future<void> Function() action) async {
+    final existingOperation = _accountRefreshOperation;
+    if (existingOperation != null) {
+      await existingOperation;
+    }
+    await _runAccountRefresh(action);
   }
 
   Future<T> _runWithResult<T>(Future<T> Function() action) async {
