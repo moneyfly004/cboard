@@ -129,6 +129,24 @@ void main() {
     expect(dashboard.subscription?.canImport, isTrue);
   });
 
+  test('AccountDashboard imports root-level subscription fields', () {
+    final dashboard = AccountDashboard.fromJson({
+      'username': 'alice',
+      'email': 'alice@example.com',
+      'subscription_url': 'root-dashboard-token',
+      'subscription_status': 'active',
+      'is_active': true,
+      'remaining_days': 30,
+    });
+
+    expect(dashboard.user.username, 'alice');
+    expect(
+      dashboard.subscription?.importUrl,
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=root-dashboard-token',
+    );
+    expect(dashboard.subscription?.canImport, isTrue);
+  });
+
   test('AccountDashboard keeps recent orders from generic map entries', () {
     final dashboard = AccountDashboard.fromJson({
       'user_info': {'id': 9, 'username': 'alice'},
@@ -165,6 +183,18 @@ void main() {
     });
 
     expect(subscription.importUrl, 'https://dy.moneyfly.top/api/v1/client/subscribe?token=raw-model-token');
+    expect(subscription.canImport, isTrue);
+  });
+
+  test('AccountSubscription accepts backend subscribe url alias', () {
+    final subscription = AccountSubscription.fromJson({
+      'subscribe_url': 'https://dy.moneyfly.top/api/v1/client/subscribe?token=alias-token&type=clash',
+      'status': 'active',
+      'is_active': true,
+      'remaining_days': 30,
+    });
+
+    expect(subscription.importUrl, 'https://dy.moneyfly.top/api/v1/client/subscribe?token=alias-token&type=clash');
     expect(subscription.canImport, isTrue);
   });
 

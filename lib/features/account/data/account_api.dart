@@ -400,6 +400,8 @@ class AccountDashboard {
           break;
         }
       }
+    } else if (_hasSubscriptionFields(json)) {
+      subscription = AccountSubscription.fromJson(json, baseUrl: baseUrl);
     }
     return AccountDashboard(
       user: AccountUser.fromJson(userJson),
@@ -512,26 +514,26 @@ class AccountSubscription {
     return AccountSubscription(
       id: _asInt(json['id'] ?? json['subscription_id']),
       packageName: json['package_name']?.toString() ?? '',
-      subscriptionUrl: _normalizeSubscriptionUrl(json['subscription_url']?.toString() ?? '', baseUrl: baseUrl),
+      subscriptionUrl: _normalizeSubscriptionUrl(
+        _firstStringValue(json, const ['subscription_url', 'subscriptionUrl', 'subscribe_url', 'subscribeUrl', 'url']),
+        baseUrl: baseUrl,
+      ),
       singboxUrl: _normalizeSubscriptionUrl(
-        json['singboxUrl']?.toString() ?? json['singbox_url']?.toString() ?? '',
+        _firstStringValue(json, const ['singboxUrl', 'singbox_url', 'sing_box_url']),
         baseUrl: baseUrl,
       ),
       universalUrl: _normalizeSubscriptionUrl(
-        json['universalUrl']?.toString() ?? json['universal_url']?.toString() ?? '',
+        _firstStringValue(json, const ['universalUrl', 'universal_url']),
         baseUrl: baseUrl,
       ),
-      clashUrl: _normalizeSubscriptionUrl(
-        json['clashUrl']?.toString() ?? json['clash_url']?.toString() ?? '',
-        baseUrl: baseUrl,
-      ),
+      clashUrl: _normalizeSubscriptionUrl(_firstStringValue(json, const ['clashUrl', 'clash_url']), baseUrl: baseUrl),
       expireTime: json['expire_time']?.toString() ?? json['expiryDate']?.toString() ?? '',
-      remainingDays: _asInt(json['remaining_days'] ?? json['days_until_expire']),
-      status: _asStatus(json['status']),
+      remainingDays: _asInt(json['remaining_days'] ?? json['days_until_expire'] ?? json['remain_days']),
+      status: _asStatus(json['status'] ?? json['subscription_status']),
       deviceLimit: _asInt(json['device_limit'] ?? json['maxDevices']),
       currentDevices: _asInt(json['current_devices'] ?? json['currentDevices']),
       onlineDevices: _asInt(json['online_devices'] ?? json['currentDevices']),
-      isActive: _asBool(json['is_active']) || _asStatus(json['status']) == 'active',
+      isActive: _asBool(json['is_active']) || _asStatus(json['status'] ?? json['subscription_status']) == 'active',
       isExpired: _asBool(json['is_expired']),
     );
   }
@@ -906,6 +908,29 @@ bool _asBool(Object? value, {bool fallback = false}) {
 
 String _asStatus(Object? value) {
   return value?.toString().trim().toLowerCase() ?? '';
+}
+
+String _firstStringValue(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    final value = json[key]?.toString().trim();
+    if (value != null && value.isNotEmpty) {
+      return value;
+    }
+  }
+  return '';
+}
+
+bool _hasSubscriptionFields(Map<String, dynamic> json) {
+  return _firstStringValue(json, const [
+    'subscription_url',
+    'subscriptionUrl',
+    'subscribe_url',
+    'subscribeUrl',
+    'universal_url',
+    'universalUrl',
+    'singbox_url',
+    'singboxUrl',
+  ]).isNotEmpty;
 }
 
 String _normalizeSubscriptionUrl(String value, {String baseUrl = kCBoardApiBaseUrl}) {
