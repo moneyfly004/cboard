@@ -439,6 +439,34 @@ void main() {
     expect(payment.orderNo, 'ORD042');
     expect(payment.paymentUrl, 'https://pay.example/ORD042');
   });
+
+  test('create order payment keeps request order number when payment response omits it', () async {
+    const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
+    SharedPreferences.setMockInitialValues({
+      'cboard_account_access_token': 'fresh-access-token',
+      'cboard_account_refresh_token': 'fresh-refresh-token',
+      'cboard_account_user': jsonEncode(savedUser.toJson()),
+    });
+
+    final preferences = await SharedPreferences.getInstance();
+    final api = _RefreshingAccountApi()..omitPayOrderNo = true;
+    final sync = _FakeSubscriptionSync();
+
+    final notifier = AccountNotifier(api, sync, preferences);
+    await pumpEventQueue();
+    api.reset();
+    api.omitPayOrderNo = true;
+
+    final payment = await notifier.createOrderPayment(
+      orderId: 42,
+      orderNo: 'ORD042',
+      paymentMethod: const PaymentMethod(id: 7, key: 'yipay_wxpay', name: '易支付-微信'),
+    );
+
+    expect(api.payOrderNos, ['ORD042']);
+    expect(payment.orderNo, 'ORD042');
+    expect(payment.paymentUrl, 'https://pay.example/ORD042');
+  });
 }
 
 class _RefreshingAccountApi extends AccountApi {
@@ -464,6 +492,7 @@ class _RefreshingAccountApi extends AccountApi {
   AccountApiException? loginFailure;
   AccountApiException? subscriptionsFailure;
   Completer<void>? _dashboardRelease;
+  bool omitPayOrderNo = false;
 
   void reset() {
     dashboardTokens.clear();
@@ -491,6 +520,7 @@ class _RefreshingAccountApi extends AccountApi {
     loginFailure = null;
     subscriptionsFailure = null;
     _dashboardRelease = null;
+    omitPayOrderNo = false;
   }
 
   void expireFreshTokenOnce() {
@@ -588,7 +618,7 @@ class _RefreshingAccountApi extends AccountApi {
     payOrderMethods.add(paymentMethod);
     return OrderResult(
       id: 9,
-      orderNo: orderNo,
+      orderNo: omitPayOrderNo ? '' : orderNo,
       status: 'pending',
       paymentUrl: 'https://pay.example/$orderNo',
       paymentQrCode: 'https://pay.example/$orderNo',

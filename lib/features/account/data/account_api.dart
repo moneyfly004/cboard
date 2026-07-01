@@ -812,6 +812,20 @@ class OrderResult {
   final String? paymentUrl;
   final String? paymentQrCode;
 
+  OrderResult withFallbackOrderNo(String fallbackOrderNo) {
+    if (orderNo.isNotEmpty || fallbackOrderNo.isEmpty) {
+      return this;
+    }
+    return OrderResult(
+      id: id,
+      orderNo: fallbackOrderNo,
+      status: status,
+      amount: amount,
+      paymentUrl: paymentUrl,
+      paymentQrCode: paymentQrCode,
+    );
+  }
+
   factory OrderResult.fromJson(Map<String, dynamic> json) {
     return OrderResult(
       id: _asInt(json['id'] ?? json['transaction_id']),

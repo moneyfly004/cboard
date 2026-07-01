@@ -276,7 +276,11 @@ class AccountNotifier extends StateNotifier<AccountState> {
       );
       OrderResult result = order;
       if ((result.paymentUrl == null || result.paymentUrl!.isEmpty) && paymentMethod != null && order.id > 0) {
-        result = await _payOrder(orderId: order.id, orderNo: order.orderNo, paymentMethod: paymentMethod);
+        result = (await _payOrder(
+          orderId: order.id,
+          orderNo: order.orderNo,
+          paymentMethod: paymentMethod,
+        )).withFallbackOrderNo(order.orderNo);
       }
       await _refreshAccountData();
       return result;
@@ -294,7 +298,13 @@ class AccountNotifier extends StateNotifier<AccountState> {
     String orderNo = '',
     required PaymentMethod paymentMethod,
   }) {
-    return _runWithResult(() => _payOrder(orderId: orderId, orderNo: orderNo, paymentMethod: paymentMethod));
+    return _runWithResult(
+      () async => (await _payOrder(
+        orderId: orderId,
+        orderNo: orderNo,
+        paymentMethod: paymentMethod,
+      )).withFallbackOrderNo(orderNo),
+    );
   }
 
   Future<OrderResult> _payOrder({required int orderId, required String orderNo, required PaymentMethod paymentMethod}) {
