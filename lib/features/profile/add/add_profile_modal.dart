@@ -35,7 +35,7 @@ class AddProfileModal extends ConsumerWidget {
             ),
             const Gap(18),
             FilledButton.icon(
-              onPressed: state.loading
+              onPressed: state.loading || !state.isAuthenticated
                   ? null
                   : () async {
                       await ref.read(accountNotifierProvider.notifier).syncSubscription();

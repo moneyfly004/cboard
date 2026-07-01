@@ -19,6 +19,7 @@ class ProfilesPage extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translationsProvider).requireValue;
     final asyncProfiles = ref.watch(profilesNotifierProvider);
+    final accountState = ref.watch(accountNotifierProvider);
 
     ref.listen(hasAnyProfileProvider, (_, next) {
       if (next.value == false) {
@@ -44,9 +45,15 @@ class ProfilesPage extends HookConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async => await ref.read(accountNotifierProvider.notifier).syncSubscription(),
-        label: const Text('同步账户订阅'),
-        icon: const Icon(Icons.cloud_sync_rounded),
+        onPressed: accountState.loading
+            ? null
+            : accountState.isAuthenticated
+            ? () async => await ref.read(accountNotifierProvider.notifier).syncSubscription()
+            : () => context.goNamed('account'),
+        label: Text(accountState.isAuthenticated ? '同步账户订阅' : '登录账户'),
+        icon: accountState.loading
+            ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.cloud_sync_rounded),
       ),
       body: asyncProfiles.when(
         data: (data) {

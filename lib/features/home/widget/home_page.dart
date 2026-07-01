@@ -1,6 +1,7 @@
 import 'package:dartx/dartx.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
@@ -25,6 +26,7 @@ class HomePage extends HookConsumerWidget {
     // final hasAnyProfile = ref.watch(hasAnyProfileProvider);
     final activeProfile = ref.watch(activeProfileProvider);
     final accountState = ref.watch(accountNotifierProvider);
+    final canSyncAccountSubscription = accountState.isAuthenticated && !accountState.loading;
 
     return Scaffold(
       appBar: AppBar(
@@ -52,10 +54,12 @@ class HomePage extends HookConsumerWidget {
         ),
         actions: [
           IconButton(
-            tooltip: '刷新账户订阅',
+            tooltip: accountState.isAuthenticated ? '刷新账户订阅' : '前往账户中心登录',
             onPressed: accountState.loading
                 ? null
-                : () => ref.read(accountNotifierProvider.notifier).syncSubscription(),
+                : canSyncAccountSubscription
+                ? () => ref.read(accountNotifierProvider.notifier).syncSubscription()
+                : () => context.goNamed('account'),
             icon: accountState.loading
                 ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
                 : Icon(Icons.cloud_sync_rounded, color: theme.colorScheme.primary),
@@ -204,11 +208,15 @@ class _AccountSubscriptionOverview extends ConsumerWidget {
                   ),
                 ),
                 OutlinedButton.icon(
-                  onPressed: state.loading ? null : () => ref.read(accountNotifierProvider.notifier).syncSubscription(),
+                  onPressed: state.loading
+                      ? null
+                      : state.isAuthenticated
+                      ? () => ref.read(accountNotifierProvider.notifier).syncSubscription()
+                      : () => context.goNamed('account'),
                   icon: state.syncingSubscription
                       ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.update_rounded),
-                  label: const Text('更新'),
+                  label: Text(state.isAuthenticated ? '更新' : '登录'),
                 ),
               ],
             ),
