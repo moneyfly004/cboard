@@ -780,7 +780,7 @@ class AccountOrderStatus {
   bool get isPaid => _asStatus(status) == 'paid';
 
   bool get isFinished => switch (_asStatus(status)) {
-    'paid' || 'cancelled' || 'failed' || 'expired' || 'refunded' => true,
+    'paid' || 'cancelled' || 'canceled' || 'failed' || 'expired' || 'refunded' => true,
     _ => false,
   };
 

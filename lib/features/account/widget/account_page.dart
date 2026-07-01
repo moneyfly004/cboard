@@ -1909,7 +1909,7 @@ class _StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final paid = status == 'paid' || status == 'active';
-    final failed = status == 'failed' || status == 'expired' || status == 'cancelled';
+    final failed = status == 'failed' || status == 'expired' || status == 'cancelled' || status == 'canceled';
     final background = paid
         ? theme.colorScheme.primaryContainer
         : failed
@@ -2048,6 +2048,7 @@ String _statusText(String status) {
     'pending' => '待支付',
     'paid' => '已支付',
     'cancelled' => '已取消',
+    'canceled' => '已取消',
     'expired' => '已过期',
     'failed' => '失败',
     _ => status.isEmpty || status == 'none' ? '未开通' : status,

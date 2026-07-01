@@ -176,6 +176,14 @@ void main() {
     expect(status.isFinished, isTrue);
   });
 
+  test('AccountOrderStatus treats backend canceled spelling as finished', () {
+    final status = AccountOrderStatus.fromJson({'order_no': 'ORD002', 'status': 'canceled'});
+
+    expect(status.status, 'canceled');
+    expect(status.isPaid, isFalse);
+    expect(status.isFinished, isTrue);
+  });
+
   test('AccountApi parses nested subscriptions list response', () async {
     const subscriptionUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=active-token';
     final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))
