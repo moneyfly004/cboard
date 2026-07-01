@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/router/go_router/go_router_notifier.dart';
 import 'package:hiddify/features/account/notifier/account_notifier.dart';
 import 'package:hiddify/features/window/notifier/window_notifier.dart';
@@ -60,7 +61,13 @@ class ShortcutWrapper extends HookConsumerWidget {
           ),
           PasteIntent: CallbackAction(
             onInvoke: (_) async {
-              if (rootNavKey.currentContext != null) {
+              final context = rootNavKey.currentContext;
+              if (context != null) {
+                final accountState = ref.read(accountNotifierProvider);
+                if (!accountState.isAuthenticated) {
+                  context.goNamed('account');
+                  return null;
+                }
                 await ref.read(accountNotifierProvider.notifier).syncSubscription();
               }
               return null;

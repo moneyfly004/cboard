@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/features/account/notifier/account_notifier.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -10,6 +11,7 @@ class EmptyProfilesHomeBody extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translationsProvider).requireValue;
+    final accountState = ref.watch(accountNotifierProvider);
 
     return SliverFillRemaining(
       hasScrollBody: false,
@@ -19,8 +21,12 @@ class EmptyProfilesHomeBody extends HookConsumerWidget {
           Text(t.dialogs.noActiveProfile.msg),
           const Gap(16),
           ElevatedButton(
-            onPressed: () => ref.read(accountNotifierProvider.notifier).syncSubscription(),
-            child: const Text('同步账户订阅'),
+            onPressed: accountState.loading
+                ? null
+                : accountState.isAuthenticated
+                ? () => ref.read(accountNotifierProvider.notifier).syncSubscription()
+                : () => context.goNamed('account'),
+            child: Text(accountState.isAuthenticated ? '同步账户订阅' : '登录账户'),
           ),
         ],
       ),
