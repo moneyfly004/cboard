@@ -433,7 +433,14 @@ class AccountNotifier extends StateNotifier<AccountState> {
     }
     try {
       final subscriptions = await _api.getSubscriptions(token);
-      return dashboard.withSubscriptionFallback(subscriptions);
+      final fallbackDashboard = dashboard.withSubscriptionFallback(subscriptions);
+      if (fallbackDashboard.subscription?.canImport == true) {
+        return fallbackDashboard;
+      }
+      if (dashboard.subscription == null || dashboard.subscription?.hasImportUrl == false) {
+        return fallbackDashboard.preserveExistingLocalSubscription();
+      }
+      return fallbackDashboard;
     } catch (_) {
       if (dashboard.subscription == null) {
         return dashboard.preserveExistingLocalSubscription();

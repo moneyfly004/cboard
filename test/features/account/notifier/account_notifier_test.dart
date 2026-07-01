@@ -323,6 +323,45 @@ void main() {
     );
   });
 
+  test('manual sync preserves local subscription when backend returns no importable subscription', () async {
+    const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
+    SharedPreferences.setMockInitialValues({
+      'cboard_account_access_token': 'fresh-access-token',
+      'cboard_account_refresh_token': 'fresh-refresh-token',
+      'cboard_account_user': jsonEncode(savedUser.toJson()),
+    });
+
+    final preferences = await SharedPreferences.getInstance();
+    final api = _RefreshingAccountApi()
+      ..dashboardSubscription = const AccountSubscription(
+        universalUrl: 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
+        status: 'active',
+        remainingDays: 30,
+        isActive: true,
+      );
+    final sync = _FakeSubscriptionSync();
+
+    final notifier = AccountNotifier(api, sync, preferences);
+    await pumpEventQueue();
+    api.reset();
+    sync.reset();
+    api
+      ..dashboardSubscription = null
+      ..subscriptions = const [];
+
+    await notifier.syncSubscription();
+
+    expect(api.dashboardTokens, ['fresh-access-token']);
+    expect(api.subscriptionTokens, ['fresh-access-token']);
+    expect(sync.syncCalls, 1);
+    expect(sync.syncedDashboards.single?.preserveLocalSubscription, isTrue);
+    expect(sync.syncedSubscriptions.single, isNull);
+    expect(
+      notifier.state.dashboard?.subscription?.importUrl,
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
+    );
+  });
+
   test('create order payment preserves selected payment method key', () async {
     const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
     SharedPreferences.setMockInitialValues({
