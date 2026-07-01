@@ -340,9 +340,9 @@ class AccountUser {
       phone: json['phone']?.toString() ?? '',
       bio: json['bio']?.toString() ?? '',
       balance: _asDouble(json['balance']),
-      isAdmin: json['is_admin'] == true,
-      isVerified: json['is_verified'] == true,
-      isActive: json['is_active'] != false,
+      isAdmin: _asBool(json['is_admin']),
+      isVerified: _asBool(json['is_verified']),
+      isActive: _asBool(json['is_active'], fallback: true),
     );
   }
 
@@ -720,7 +720,7 @@ class AccountPackage {
       price: _asDouble(json['price']),
       durationDays: _asInt(json['duration_days']),
       deviceLimit: _asInt(json['device_limit']),
-      isRecommended: json['is_recommended'] == true,
+      isRecommended: _asBool(json['is_recommended']),
     );
   }
 }
@@ -883,7 +883,7 @@ bool _asBool(Object? value, {bool fallback = false}) {
     return value != 0;
   }
   if (value is String) {
-    final normalized = value.toLowerCase();
+    final normalized = value.trim().toLowerCase();
     if (normalized == 'true' || normalized == '1') {
       return true;
     }

@@ -168,6 +168,23 @@ void main() {
     expect(subscription.canImport, isTrue);
   });
 
+  test('AccountUser accepts numeric and string boolean flags', () {
+    final activeUser = AccountUser.fromJson({
+      'id': '21',
+      'username': 'active',
+      'is_admin': '1',
+      'is_verified': ' true ',
+      'is_active': 1,
+    });
+    final disabledUser = AccountUser.fromJson({'username': 'disabled', 'is_active': '0'});
+
+    expect(activeUser.id, 21);
+    expect(activeUser.isAdmin, isTrue);
+    expect(activeUser.isVerified, isTrue);
+    expect(activeUser.isActive, isTrue);
+    expect(disabledUser.isActive, isFalse);
+  });
+
   test('AccountSubscription prefers backend sing-box subscribe url for import', () {
     final subscription = AccountSubscription.fromJson({
       'subscription_url': 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=clash',
@@ -193,6 +210,12 @@ void main() {
 
     expect(subscription.status, 'active');
     expect(subscription.canImport, isTrue);
+  });
+
+  test('AccountPackage accepts numeric and string recommended flags', () {
+    expect(AccountPackage.fromJson({'id': 1, 'name': 'Pro', 'is_recommended': ' true '}).isRecommended, isTrue);
+    expect(AccountPackage.fromJson({'id': 2, 'name': 'Basic', 'is_recommended': 1}).isRecommended, isTrue);
+    expect(AccountPackage.fromJson({'id': 3, 'name': 'Lite', 'is_recommended': '0'}).isRecommended, isFalse);
   });
 
   test('AccountOrderStatus normalizes backend status before comparisons', () {
