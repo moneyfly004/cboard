@@ -58,4 +58,26 @@ void main() {
     expect(result.mobile, 1);
     expect(result.desktop, 1);
   });
+
+  test('AccountDashboard uses first importable subscription as fallback', () {
+    const fallbackUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=active-token';
+    final dashboard =
+        const AccountDashboard(
+          subscription: AccountSubscription(
+            universalUrl: 'https://dy.moneyfly.top/api/v1/client/subscribe?token=disabled-token',
+            status: 'disabled',
+            remainingDays: 30,
+          ),
+        ).withSubscriptionFallback(const [
+          AccountSubscription(
+            universalUrl: 'https://dy.moneyfly.top/api/v1/client/subscribe?token=expired-token',
+            status: 'expired',
+            remainingDays: -1,
+          ),
+          AccountSubscription(universalUrl: fallbackUrl, status: 'active', remainingDays: 30, isActive: true),
+        ]);
+
+    expect(dashboard.subscription?.importUrl, fallbackUrl);
+    expect(dashboard.subscription?.canImport, isTrue);
+  });
 }

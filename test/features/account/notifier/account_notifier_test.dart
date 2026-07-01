@@ -241,6 +241,41 @@ void main() {
     expect(sync.syncCalls, 0);
     expect(notifier.state.authExpired, isFalse);
   });
+
+  test('manual sync falls back to importable subscription list entry', () async {
+    const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
+    const fallbackUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=active-token';
+    SharedPreferences.setMockInitialValues({
+      'cboard_account_access_token': 'fresh-access-token',
+      'cboard_account_refresh_token': 'fresh-refresh-token',
+      'cboard_account_user': jsonEncode(savedUser.toJson()),
+    });
+
+    final preferences = await SharedPreferences.getInstance();
+    final api = _RefreshingAccountApi();
+    final sync = _FakeSubscriptionSync();
+
+    final notifier = AccountNotifier(api, sync, preferences);
+    await pumpEventQueue();
+    api.reset();
+    sync.reset();
+    api
+      ..dashboardSubscription = const AccountSubscription(
+        universalUrl: 'https://dy.moneyfly.top/api/v1/client/subscribe?token=disabled-token',
+        status: 'disabled',
+        remainingDays: 30,
+      )
+      ..subscriptions = const [
+        AccountSubscription(universalUrl: fallbackUrl, status: 'active', remainingDays: 30, isActive: true),
+      ];
+
+    await notifier.syncSubscription();
+
+    expect(api.dashboardTokens, ['fresh-access-token']);
+    expect(api.subscriptionTokens, ['fresh-access-token']);
+    expect(sync.syncedSubscriptions.single?.importUrl, fallbackUrl);
+    expect(notifier.state.dashboard?.subscription?.importUrl, fallbackUrl);
+  });
 }
 
 class _RefreshingAccountApi extends AccountApi {
@@ -251,9 +286,12 @@ class _RefreshingAccountApi extends AccountApi {
   final List<String> refreshTokens = [];
   final List<String> loginEmails = [];
   final List<String> loginPasswords = [];
+  final List<String> subscriptionTokens = [];
   int refreshTokenCalls = 0;
   bool _expireFreshTokenOnce = false;
   bool holdDashboards = false;
+  AccountSubscription? dashboardSubscription;
+  List<AccountSubscription> subscriptions = const [];
   AccountApiException? refreshFailure;
   AccountApiException? loginFailure;
   Completer<void>? _dashboardRelease;
@@ -264,9 +302,12 @@ class _RefreshingAccountApi extends AccountApi {
     refreshTokens.clear();
     loginEmails.clear();
     loginPasswords.clear();
+    subscriptionTokens.clear();
     refreshTokenCalls = 0;
     _expireFreshTokenOnce = false;
     holdDashboards = false;
+    dashboardSubscription = null;
+    subscriptions = const [];
     refreshFailure = null;
     loginFailure = null;
     _dashboardRelease = null;
@@ -324,7 +365,13 @@ class _RefreshingAccountApi extends AccountApi {
     }
     return const AccountDashboard(
       user: AccountUser(id: 1, username: 'fresh', email: 'fresh@example.com'),
-    );
+    ).withSubscriptionFallback(dashboardSubscription == null ? const [] : [dashboardSubscription!]);
+  }
+
+  @override
+  Future<List<AccountSubscription>> getSubscriptions(String token) async {
+    subscriptionTokens.add(token);
+    return subscriptions;
   }
 
   @override
@@ -355,11 +402,13 @@ class _FakeSubscriptionSync implements AccountSubscriptionSync {
   int clearCalls = 0;
   int refreshActiveCalls = 0;
   int syncCalls = 0;
+  final List<AccountSubscription?> syncedSubscriptions = [];
 
   void reset() {
     clearCalls = 0;
     refreshActiveCalls = 0;
     syncCalls = 0;
+    syncedSubscriptions.clear();
   }
 
   @override
@@ -375,5 +424,6 @@ class _FakeSubscriptionSync implements AccountSubscriptionSync {
   @override
   Future<void> sync(AccountDashboard? dashboard) async {
     syncCalls++;
+    syncedSubscriptions.add(dashboard?.subscription);
   }
 }

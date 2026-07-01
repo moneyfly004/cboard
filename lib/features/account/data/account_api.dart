@@ -103,6 +103,11 @@ class AccountApi {
     return AccountDashboard.fromJson(_payload(data));
   }
 
+  Future<List<AccountSubscription>> getSubscriptions(String token) async {
+    final data = await _get('/subscriptions', token: token);
+    return _listPayload(data).map(AccountSubscription.fromJson).toList();
+  }
+
   Future<List<AccountPackage>> getPackages() async {
     final data = await _get('/packages');
     return _listPayload(data).map(AccountPackage.fromJson).toList();
@@ -340,6 +345,18 @@ class AccountDashboard {
         (json['statistics'] as Map?)?['total_spent'] ?? statJson?['total_spent'] ?? json['total_spent'],
       ),
     );
+  }
+
+  AccountDashboard withSubscriptionFallback(List<AccountSubscription> subscriptions) {
+    if (subscription?.canImport == true) {
+      return this;
+    }
+    for (final fallback in subscriptions) {
+      if (fallback.canImport) {
+        return AccountDashboard(user: user, subscription: fallback, recentOrders: recentOrders, totalSpent: totalSpent);
+      }
+    }
+    return this;
   }
 }
 

@@ -206,7 +206,7 @@ class AccountNotifier extends StateNotifier<AccountState> {
 
   Future<void> syncSubscription() async {
     await _runAccountRefresh(() async {
-      final dashboard = await _withAuthenticatedToken(_api.getDashboard);
+      final dashboard = await _withAuthenticatedToken(_loadDashboardWithSubscriptionFallback);
       state = state.copyWith(user: dashboard.user, dashboard: dashboard, authExpired: false);
       await _persistAuth(state.token, state.refreshToken, dashboard.user);
       await _syncSubscription(dashboard, successMessage: '订阅已同步');
@@ -216,7 +216,7 @@ class AccountNotifier extends StateNotifier<AccountState> {
   Future<void> refreshActiveSubscription() async {
     await _runAccountRefresh(() async {
       state = state.copyWith(syncingSubscription: true);
-      final dashboard = await _withAuthenticatedToken(_api.getDashboard);
+      final dashboard = await _withAuthenticatedToken(_loadDashboardWithSubscriptionFallback);
       state = state.copyWith(user: dashboard.user, dashboard: dashboard, authExpired: false);
       await _persistAuth(state.token, state.refreshToken, dashboard.user);
       await _subscriptionSync.refreshActiveSubscription(dashboard);
@@ -227,7 +227,7 @@ class AccountNotifier extends StateNotifier<AccountState> {
   Future<void> refreshSubscriptionStatusSilently() async {
     if (!_hasAuthCredentials) return;
     await _runAccountRefresh(() async {
-      final dashboard = await _withAuthenticatedToken(_api.getDashboard);
+      final dashboard = await _withAuthenticatedToken(_loadDashboardWithSubscriptionFallback);
       state = state.copyWith(user: dashboard.user, dashboard: dashboard, authExpired: false);
       await _persistAuth(state.token, state.refreshToken, dashboard.user);
       await _subscriptionSync.refreshActiveSubscription(dashboard);
@@ -345,7 +345,7 @@ class AccountNotifier extends StateNotifier<AccountState> {
   Future<void> _refreshAccountData() async {
     final results = await _withAuthenticatedToken(
       (token) => Future.wait<Object>([
-        _api.getDashboard(token),
+        _loadDashboardWithSubscriptionFallback(token),
         _api.getPackages(),
         _api.getPaymentMethods(),
         _api.getOrders(token),
@@ -373,7 +373,7 @@ class AccountNotifier extends StateNotifier<AccountState> {
 
   Future<void> _refreshAccountSummaryAndDevices() async {
     final results = await _withAuthenticatedToken(
-      (token) => Future.wait<Object>([_api.getDashboard(token), _api.getDevices(token)]),
+      (token) => Future.wait<Object>([_loadDashboardWithSubscriptionFallback(token), _api.getDevices(token)]),
     );
     final dashboard = results[0] as AccountDashboard;
     final devices = results[1] as AccountDevicesResult;
@@ -400,6 +400,19 @@ class AccountNotifier extends StateNotifier<AccountState> {
       deviceDesktop: devices.desktop,
       authExpired: false,
     );
+  }
+
+  Future<AccountDashboard> _loadDashboardWithSubscriptionFallback(String token) async {
+    final dashboard = await _api.getDashboard(token);
+    if (dashboard.subscription?.canImport == true) {
+      return dashboard;
+    }
+    try {
+      final subscriptions = await _api.getSubscriptions(token);
+      return dashboard.withSubscriptionFallback(subscriptions);
+    } catch (_) {
+      return dashboard;
+    }
   }
 
   void _restore() {
