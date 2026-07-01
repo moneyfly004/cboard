@@ -111,18 +111,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Free Android runner disk space
-        shell: bash
-        run: |
-          set -euo pipefail
-          df -h
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo apt-get autoremove -y
-          sudo apt-get clean
-          df -h
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -162,6 +150,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Free Android runner disk space
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          df -h
 
       - name: Setup Java
         uses: actions/setup-java@v4
