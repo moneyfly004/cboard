@@ -1,3 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hiddify/features/account/data/account_api.dart';
 
@@ -94,4 +99,48 @@ void main() {
     expect(subscription.isExpired, isTrue);
     expect(subscription.canImport, isFalse);
   });
+
+  test('AccountApi parses nested subscriptions list response', () async {
+    const subscriptionUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=active-token';
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))
+      ..httpClientAdapter = _JsonAdapter({
+        'data': {
+          'subscriptions': [
+            {'subscription_url': subscriptionUrl, 'status': 'active', 'is_active': true, 'days_until_expire': 30},
+          ],
+          'total': 1,
+        },
+      });
+    final api = AccountApi(dio: dio);
+
+    final subscriptions = await api.getSubscriptions('access-token');
+
+    expect(subscriptions, hasLength(1));
+    expect(subscriptions.single.importUrl, subscriptionUrl);
+    expect(subscriptions.single.canImport, isTrue);
+  });
+}
+
+class _JsonAdapter implements HttpClientAdapter {
+  _JsonAdapter(this.body);
+
+  final Map<String, dynamic> body;
+
+  @override
+  void close({bool force = false}) {}
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    return ResponseBody.fromString(
+      jsonEncode(body),
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
 }

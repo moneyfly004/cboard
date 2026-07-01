@@ -227,10 +227,28 @@ class AccountApi {
     if (payload is List) {
       return payload.whereType<Map<String, dynamic>>().toList();
     }
-    if (data['packages'] is List) {
-      return (data['packages'] as List).whereType<Map<String, dynamic>>().toList();
+    if (payload is Map) {
+      final payloadMap = payload.cast<String, dynamic>();
+      final nestedList = _firstListValue(payloadMap, const ['subscriptions', 'packages', 'items', 'records', 'list']);
+      if (nestedList != null) {
+        return nestedList.whereType<Map<String, dynamic>>().toList();
+      }
+    }
+    final rootList = _firstListValue(data, const ['subscriptions', 'packages', 'items', 'records', 'list']);
+    if (rootList != null) {
+      return rootList.whereType<Map<String, dynamic>>().toList();
     }
     return const [];
+  }
+
+  List<dynamic>? _firstListValue(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value is List) {
+        return value;
+      }
+    }
+    return null;
   }
 
   String _messageFromData(Map<String, dynamic> data, {required String fallback}) {
