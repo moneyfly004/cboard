@@ -129,22 +129,19 @@ class AccountSubscriptionSync {
   }
 
   bool _isLegacyAccountProfile({required String name, required String url, required UserOverride? userOverride}) {
-    if (userOverride?.name != name || !_hasLegacyAccountUpdateInterval(userOverride)) {
+    if (userOverride?.name != name || !_hasLegacyAccountOverride(userOverride)) {
       return false;
     }
     final uri = Uri.tryParse(url);
     return uri != null &&
-        _isKnownAccountSubscriptionHost(uri.host) &&
         ((uri.pathSegments.contains('subscriptions') && uri.pathSegments.contains('universal')) ||
             (uri.path.endsWith('/client/subscribe') && (uri.queryParameters['token']?.isNotEmpty ?? false)));
   }
 
-  bool _hasLegacyAccountUpdateInterval(UserOverride? userOverride) {
-    return userOverride?.updateInterval == 1 || userOverride?.isAutoUpdateDisable == true;
-  }
-
-  bool _isKnownAccountSubscriptionHost(String host) {
-    final apiHost = Uri.tryParse(kCBoardApiBaseUrl)?.host;
-    return host == 'dy.moneyfly.top' || (apiHost != null && apiHost.isNotEmpty && host == apiHost);
+  bool _hasLegacyAccountOverride(UserOverride? userOverride) {
+    if (userOverride == null || userOverride.version >= latestUserOverrideVersion) {
+      return false;
+    }
+    return userOverride.updateInterval == 1 || userOverride.isAutoUpdateDisable == true;
   }
 }

@@ -284,6 +284,54 @@ void main() {
     expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, accountUrl);
   });
 
+  test('sync deletes legacy account subscription from custom API host after replacement', () async {
+    const oldAccountUrl = 'https://client.example.com/api/v1/client/subscribe?token=old-token';
+    const accountUrl = 'https://client.example.com/api/v1/client/subscribe?token=account-token&type=singbox';
+    final manualProfile = RemoteProfileEntity(
+      id: 'manual',
+      active: false,
+      name: 'Manual',
+      url: 'https://client.example.com/api/v1/client/subscribe?token=manual-token',
+      lastUpdate: DateTime(2026),
+      userOverride: const UserOverride(name: 'Manual', updateInterval: 1),
+    );
+    final repo = _FakeProfileRepository([
+      manualProfile,
+      RemoteProfileEntity(
+        id: 'legacy-custom-account',
+        active: true,
+        name: 'VIP',
+        url: oldAccountUrl,
+        lastUpdate: DateTime(2026),
+        userOverride: const UserOverride(version: 1, name: 'VIP', updateInterval: 1),
+      ),
+    ]);
+    final container = ProviderContainer(
+      overrides: [profileRepositoryProvider.overrideWith((ref) => Future.value(repo))],
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(accountSubscriptionSyncProvider)
+        .sync(
+          const AccountDashboard(
+            subscription: AccountSubscription(
+              id: 1,
+              packageName: 'VIP',
+              singboxUrl: accountUrl,
+              status: 'active',
+              remainingDays: 30,
+              isActive: true,
+            ),
+          ),
+        );
+
+    expect(repo.upsertedUrls, [accountUrl]);
+    expect(repo.deletedIds, ['legacy-custom-account']);
+    expect(repo.profiles.map((profile) => profile.id), contains('manual'));
+    expect(repo.profiles.whereType<RemoteProfileEntity>().map((profile) => profile.url), contains(accountUrl));
+  });
+
   test('sync removes account subscription profile when subscription is disabled but still has a url', () async {
     const disabledAccountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/disabled-token';
     final repo = _FakeProfileRepository([
