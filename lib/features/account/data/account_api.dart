@@ -160,6 +160,20 @@ class AccountApi {
     return OrderResult.fromJson(_payload(data));
   }
 
+  Future<OrderResult> payOrder({
+    required String token,
+    required String orderNo,
+    required int paymentMethodId,
+    required String paymentMethod,
+  }) async {
+    final data = await _post(
+      '/orders/$orderNo/pay',
+      token: token,
+      data: {'payment_method_id': paymentMethodId, if (paymentMethod.isNotEmpty) 'payment_method': paymentMethod},
+    );
+    return OrderResult.fromJson(_payload(data));
+  }
+
   Future<AccountDevicesResult> getDevices(String token, {int page = 1, int size = 100}) async {
     final data = await _get('/subscriptions/devices', token: token, queryParameters: {'page': page, 'size': size});
     return AccountDevicesResult.fromJson(data);

@@ -276,9 +276,7 @@ class AccountNotifier extends StateNotifier<AccountState> {
       );
       OrderResult result = order;
       if ((result.paymentUrl == null || result.paymentUrl!.isEmpty) && paymentMethod != null && order.id > 0) {
-        result = await _withAuthenticatedToken(
-          (token) => _api.createPayment(token: token, orderId: order.id, paymentMethodId: paymentMethod.id),
-        );
+        result = await _payOrder(orderId: order.id, orderNo: order.orderNo, paymentMethod: paymentMethod);
       }
       await _refreshAccountData();
       return result;
@@ -291,12 +289,26 @@ class AccountNotifier extends StateNotifier<AccountState> {
     );
   }
 
-  Future<OrderResult> createOrderPayment({required int orderId, required PaymentMethod paymentMethod}) {
-    return _runWithResult(
-      () => _withAuthenticatedToken(
-        (token) => _api.createPayment(token: token, orderId: orderId, paymentMethodId: paymentMethod.id),
-      ),
-    );
+  Future<OrderResult> createOrderPayment({
+    required int orderId,
+    String orderNo = '',
+    required PaymentMethod paymentMethod,
+  }) {
+    return _runWithResult(() => _payOrder(orderId: orderId, orderNo: orderNo, paymentMethod: paymentMethod));
+  }
+
+  Future<OrderResult> _payOrder({required int orderId, required String orderNo, required PaymentMethod paymentMethod}) {
+    return _withAuthenticatedToken((token) {
+      if (orderNo.isNotEmpty) {
+        return _api.payOrder(
+          token: token,
+          orderNo: orderNo,
+          paymentMethodId: paymentMethod.id,
+          paymentMethod: paymentMethod.key,
+        );
+      }
+      return _api.createPayment(token: token, orderId: orderId, paymentMethodId: paymentMethod.id);
+    });
   }
 
   Future<AccountOrderStatus> checkOrderStatus(String orderNo) {

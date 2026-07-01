@@ -183,12 +183,41 @@ void main() {
     expect(orders.single.packageName, 'Pro');
     expect(orders.single.amount, 19.9);
   });
+
+  test('AccountApi pays order with selected payment method key', () async {
+    final adapter = _JsonAdapter({
+      'data': {
+        'transaction_id': 9,
+        'order_no': 'ORD009',
+        'payment_url': 'https://pay.example/qr',
+        'payment_qr_code': 'https://pay.example/qr',
+        'payment_method': 'yipay_wxpay',
+      },
+    });
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))..httpClientAdapter = adapter;
+    final api = AccountApi(dio: dio);
+
+    final payment = await api.payOrder(
+      token: 'access-token',
+      orderNo: 'ORD009',
+      paymentMethodId: 3,
+      paymentMethod: 'yipay_wxpay',
+    );
+
+    expect(adapter.requestPaths, ['/orders/ORD009/pay']);
+    expect(adapter.requestBodies.single, {'payment_method_id': 3, 'payment_method': 'yipay_wxpay'});
+    expect(payment.id, 9);
+    expect(payment.orderNo, 'ORD009');
+    expect(payment.paymentUrl, 'https://pay.example/qr');
+  });
 }
 
 class _JsonAdapter implements HttpClientAdapter {
   _JsonAdapter(this.body);
 
   final Map<String, dynamic> body;
+  final List<String> requestPaths = [];
+  final List<Object?> requestBodies = [];
 
   @override
   void close({bool force = false}) {}
@@ -199,6 +228,9 @@ class _JsonAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
+    requestPaths.add(options.path);
+    final requestBytes = requestStream == null ? <int>[] : await requestStream.expand((chunk) => chunk).toList();
+    requestBodies.add(requestBytes.isEmpty ? null : jsonDecode(utf8.decode(requestBytes)));
     return ResponseBody.fromString(
       jsonEncode(body),
       200,

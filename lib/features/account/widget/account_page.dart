@@ -1100,7 +1100,7 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
       final notifier = ref.read(accountNotifierProvider.notifier);
       final order = _order?.id == 0 || _order == null ? await notifier.createPackageOrder(widget.package) : _order!;
       final payment = order.id > 0
-          ? await notifier.createOrderPayment(orderId: order.id, paymentMethod: method)
+          ? await notifier.createOrderPayment(orderId: order.id, orderNo: order.orderNo, paymentMethod: method)
           : order;
       if (!mounted) return;
       setState(() {

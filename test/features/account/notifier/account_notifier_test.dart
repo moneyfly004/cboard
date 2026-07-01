@@ -322,6 +322,37 @@ void main() {
       'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
     );
   });
+
+  test('create order payment preserves selected payment method key', () async {
+    const savedUser = AccountUser(id: 1, username: 'saved', email: 'saved@example.com');
+    SharedPreferences.setMockInitialValues({
+      'cboard_account_access_token': 'fresh-access-token',
+      'cboard_account_refresh_token': 'fresh-refresh-token',
+      'cboard_account_user': jsonEncode(savedUser.toJson()),
+    });
+
+    final preferences = await SharedPreferences.getInstance();
+    final api = _RefreshingAccountApi();
+    final sync = _FakeSubscriptionSync();
+
+    final notifier = AccountNotifier(api, sync, preferences);
+    await pumpEventQueue();
+    api.reset();
+
+    final payment = await notifier.createOrderPayment(
+      orderId: 42,
+      orderNo: 'ORD042',
+      paymentMethod: const PaymentMethod(id: 7, key: 'yipay_wxpay', name: '易支付-微信'),
+    );
+
+    expect(api.payOrderTokens, ['fresh-access-token']);
+    expect(api.payOrderNos, ['ORD042']);
+    expect(api.payOrderMethodIds, [7]);
+    expect(api.payOrderMethods, ['yipay_wxpay']);
+    expect(api.createPaymentOrderIds, isEmpty);
+    expect(payment.orderNo, 'ORD042');
+    expect(payment.paymentUrl, 'https://pay.example/ORD042');
+  });
 }
 
 class _RefreshingAccountApi extends AccountApi {
@@ -333,6 +364,11 @@ class _RefreshingAccountApi extends AccountApi {
   final List<String> loginEmails = [];
   final List<String> loginPasswords = [];
   final List<String> subscriptionTokens = [];
+  final List<String> payOrderTokens = [];
+  final List<String> payOrderNos = [];
+  final List<int> payOrderMethodIds = [];
+  final List<String> payOrderMethods = [];
+  final List<int> createPaymentOrderIds = [];
   int refreshTokenCalls = 0;
   bool _expireFreshTokenOnce = false;
   bool holdDashboards = false;
@@ -350,6 +386,11 @@ class _RefreshingAccountApi extends AccountApi {
     loginEmails.clear();
     loginPasswords.clear();
     subscriptionTokens.clear();
+    payOrderTokens.clear();
+    payOrderNos.clear();
+    payOrderMethodIds.clear();
+    payOrderMethods.clear();
+    createPaymentOrderIds.clear();
     refreshTokenCalls = 0;
     _expireFreshTokenOnce = false;
     holdDashboards = false;
@@ -446,6 +487,32 @@ class _RefreshingAccountApi extends AccountApi {
   @override
   Future<List<AccountOrder>> getOrders(String token) async {
     return const [];
+  }
+
+  @override
+  Future<OrderResult> payOrder({
+    required String token,
+    required String orderNo,
+    required int paymentMethodId,
+    required String paymentMethod,
+  }) async {
+    payOrderTokens.add(token);
+    payOrderNos.add(orderNo);
+    payOrderMethodIds.add(paymentMethodId);
+    payOrderMethods.add(paymentMethod);
+    return OrderResult(
+      id: 9,
+      orderNo: orderNo,
+      status: 'pending',
+      paymentUrl: 'https://pay.example/$orderNo',
+      paymentQrCode: 'https://pay.example/$orderNo',
+    );
+  }
+
+  @override
+  Future<OrderResult> createPayment({required String token, required int orderId, required int paymentMethodId}) async {
+    createPaymentOrderIds.add(orderId);
+    return OrderResult(id: 9, orderNo: 'ORD$orderId', status: 'pending');
   }
 
   @override
