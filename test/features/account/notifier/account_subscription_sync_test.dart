@@ -69,9 +69,10 @@ void main() {
           ),
         );
 
-    expect(repo.deletedIds, ['legacy-account', 'account']);
+    expect(repo.deletedIds, ['legacy-account']);
     expect(repo.profiles.map((profile) => profile.id), contains('manual'));
     expect(repo.profiles.map((profile) => profile.id), contains('manual-universal'));
+    expect(repo.profiles.map((profile) => profile.id), contains('account'));
     expect(repo.upsertedUrls, [accountUrl]);
     expect(repo.upsertedUserOverrides, [AccountSubscriptionSync.accountProfileOverride]);
   });
@@ -147,13 +148,13 @@ void main() {
           ),
         );
 
-    expect(repo.deletedIds, ['account']);
+    expect(repo.deletedIds, isEmpty);
     expect(repo.upsertedUserOverrides, [
       const UserOverride(name: AccountSubscriptionSync.accountProfileName, updateInterval: 12),
     ]);
   });
 
-  test('sync deletes old account subscription before importing new config', () async {
+  test('sync keeps existing account subscription when importing new config fails', () async {
     const accountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/account-token';
     final repo = _FakeProfileRepository([
       RemoteProfileEntity(
@@ -188,9 +189,47 @@ void main() {
       throwsA(isA<ProfileInvalidConfigFailure>()),
     );
 
-    expect(repo.deletedIds, ['account']);
-    expect(repo.profiles.map((profile) => profile.id), isNot(contains('account')));
+    expect(repo.deletedIds, isEmpty);
+    expect(repo.profiles.map((profile) => profile.id), contains('account'));
     expect(repo.upsertedUrls, [accountUrl]);
+  });
+
+  test('sync deletes old account subscription after importing replacement config', () async {
+    const oldAccountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/old-token';
+    const accountUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token';
+    final repo = _FakeProfileRepository([
+      RemoteProfileEntity(
+        id: 'old-account',
+        active: true,
+        name: AccountSubscriptionSync.accountProfileName,
+        url: oldAccountUrl,
+        lastUpdate: DateTime(2026),
+        userOverride: AccountSubscriptionSync.accountProfileOverride,
+      ),
+    ]);
+    final container = ProviderContainer(
+      overrides: [profileRepositoryProvider.overrideWith((ref) => Future.value(repo))],
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(accountSubscriptionSyncProvider)
+        .sync(
+          const AccountDashboard(
+            subscription: AccountSubscription(
+              id: 1,
+              packageName: 'VIP',
+              universalUrl: accountUrl,
+              status: 'active',
+              remainingDays: 30,
+              isActive: true,
+            ),
+          ),
+        );
+
+    expect(repo.upsertedUrls, [accountUrl]);
+    expect(repo.deletedIds, ['old-account']);
+    expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, accountUrl);
   });
 
   test('sync removes account subscription profile when subscription is disabled but still has a url', () async {

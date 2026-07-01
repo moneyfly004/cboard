@@ -26,15 +26,17 @@ class AccountSubscriptionSync {
     final url = subscription?.importUrl ?? '';
     final repo = await _ref.read(profileRepositoryProvider.future);
     final canImport = subscription != null && subscription.canImport && _isAccountSubscriptionUrl(url);
-    final existingAccountProfile = await _deleteAccountProfiles(repo, activeUrl: url);
     if (!canImport) {
+      await _deleteAccountProfiles(repo);
       return;
     }
 
+    final existingAccountProfile = await _findAccountProfile(repo, activeUrl: url);
     await repo
         .upsertRemote(url, userOverride: _accountUserOverride(existingAccountProfile), active: true)
         .getOrElse((failure) => throw failure)
         .run();
+    await _deleteAccountProfiles(repo, exceptUrl: url);
   }
 
   Future<void> refreshActiveSubscription(AccountDashboard? dashboard) async {
@@ -42,14 +44,16 @@ class AccountSubscriptionSync {
     final subscription = dashboard?.subscription;
     final activeUrl = subscription?.importUrl ?? '';
     final canImport = subscription != null && subscription.canImport && _isAccountSubscriptionUrl(activeUrl);
-    final existingAccountProfile = await _deleteAccountProfiles(repo, activeUrl: activeUrl);
     if (!canImport) {
+      await _deleteAccountProfiles(repo);
       return;
     }
+    final existingAccountProfile = await _findAccountProfile(repo, activeUrl: activeUrl);
     await repo
         .upsertRemote(activeUrl, userOverride: _accountUserOverride(existingAccountProfile), active: true)
         .getOrElse((failure) => throw failure)
         .run();
+    await _deleteAccountProfiles(repo, exceptUrl: activeUrl);
   }
 
   bool _isAccountSubscriptionUrl(String url) {
@@ -63,7 +67,7 @@ class AccountSubscriptionSync {
     return uri.path.endsWith('/client/subscribe') && (uri.queryParameters['token']?.isNotEmpty ?? false);
   }
 
-  Future<RemoteProfileEntity?> _deleteAccountProfiles(ProfileRepository repo, {String? activeUrl}) async {
+  Future<RemoteProfileEntity?> _findAccountProfile(ProfileRepository repo, {String? activeUrl}) async {
     final profiles = await repo
         .watchAll(sortMode: SortMode.descending)
         .map((event) => event.getOrElse((failure) => throw failure))
@@ -73,6 +77,23 @@ class AccountSubscriptionSync {
       if (profile is RemoteProfileEntity &&
           (keptAccountProfile == null || (activeUrl != null && activeUrl.isNotEmpty && profile.url == activeUrl))) {
         keptAccountProfile = profile;
+      }
+    }
+    return keptAccountProfile;
+  }
+
+  Future<RemoteProfileEntity?> _deleteAccountProfiles(ProfileRepository repo, {String? exceptUrl}) async {
+    final profiles = await repo
+        .watchAll(sortMode: SortMode.descending)
+        .map((event) => event.getOrElse((failure) => throw failure))
+        .first;
+    RemoteProfileEntity? keptAccountProfile;
+    for (final profile in profiles.where(_isAccountProfile)) {
+      if (profile is RemoteProfileEntity && keptAccountProfile == null) {
+        keptAccountProfile = profile;
+      }
+      if (profile is RemoteProfileEntity && exceptUrl != null && exceptUrl.isNotEmpty && profile.url == exceptUrl) {
+        continue;
       }
       await repo.deleteById(profile.id, profile.active).getOrElse((failure) => throw failure).run();
     }
