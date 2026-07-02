@@ -479,7 +479,8 @@ class AccountSubscription {
     final preferredSingboxUrl = _isSupportedImportUrl(singboxUrl)
         ? singboxUrl
         : _withSubscribeType(importUrlSource, 'singbox');
-    for (final url in [preferredSingboxUrl, universalUrl, subscriptionUrl, clashUrl]) {
+    final preferredClashUrl = _isSupportedImportUrl(clashUrl) ? clashUrl : _withSubscribeType(importUrlSource, 'clash');
+    for (final url in [preferredSingboxUrl, preferredClashUrl, universalUrl, subscriptionUrl]) {
       if (_isSupportedImportUrl(url) && !urls.contains(url)) {
         urls.add(url);
       }

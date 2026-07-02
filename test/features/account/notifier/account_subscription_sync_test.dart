@@ -431,6 +431,7 @@ void main() {
 
   test('sync falls back when backend sing-box subscription cannot be parsed', () async {
     const singboxUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox';
+    const clashUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=clash';
     const universalUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token';
     final repo = _FakeProfileRepository([])
       ..upsertFailuresByUrl[singboxUrl] = const ProfileFailure.invalidConfig(
@@ -458,7 +459,42 @@ void main() {
         );
 
     expect(imported, isTrue);
-    expect(repo.upsertedUrls, [singboxUrl, universalUrl]);
+    expect(repo.upsertedUrls, [singboxUrl, clashUrl]);
+    expect(repo.deletedIds, isEmpty);
+    expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, clashUrl);
+  });
+
+  test('sync falls back to universal url when derived formats cannot be parsed', () async {
+    const singboxUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox';
+    const clashUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=clash';
+    const universalUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token';
+    final repo = _FakeProfileRepository([])
+      ..upsertFailuresByUrl[singboxUrl] = const ProfileFailure.invalidConfig(
+        '[SingboxParser] unmarshal error: outbounds[0].server: json: unknown field "server"',
+      )
+      ..upsertFailuresByUrl[clashUrl] = const ProfileFailure.invalidConfig('unable to determine config format');
+    final container = ProviderContainer(
+      overrides: [profileRepositoryProvider.overrideWith((ref) => Future.value(repo))],
+    );
+    addTearDown(container.dispose);
+
+    final imported = await container
+        .read(accountSubscriptionSyncProvider)
+        .sync(
+          const AccountDashboard(
+            subscription: AccountSubscription(
+              id: 1,
+              packageName: 'VIP',
+              universalUrl: universalUrl,
+              status: 'active',
+              remainingDays: 30,
+              isActive: true,
+            ),
+          ),
+        );
+
+    expect(imported, isTrue);
+    expect(repo.upsertedUrls, [singboxUrl, clashUrl, universalUrl]);
     expect(repo.deletedIds, isEmpty);
     expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, universalUrl);
   });

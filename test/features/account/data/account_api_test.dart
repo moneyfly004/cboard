@@ -231,8 +231,8 @@ void main() {
     expect(subscription.importUrl, 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox');
     expect(subscription.importUrls, [
       'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox',
-      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
       'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=clash',
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
     ]);
     expect(subscription.canImport, isTrue);
   });
@@ -248,6 +248,7 @@ void main() {
     expect(subscription.importUrl, 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox');
     expect(subscription.importUrls, [
       'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox',
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=clash',
       'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
     ]);
     expect(subscription.canImport, isTrue);
