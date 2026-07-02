@@ -426,6 +426,40 @@ void main() {
     expect(repo.upsertedUrls, [singboxUrl]);
     expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, singboxUrl);
   });
+
+  test('sync falls back when backend sing-box subscription cannot be parsed', () async {
+    const singboxUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox';
+    const universalUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token';
+    final repo = _FakeProfileRepository([])
+      ..upsertFailuresByUrl[singboxUrl] = const ProfileFailure.invalidConfig(
+        '[SingboxParser] unmarshal error: outbounds[0].server: json: unknown field "server"',
+      );
+    final container = ProviderContainer(
+      overrides: [profileRepositoryProvider.overrideWith((ref) => Future.value(repo))],
+    );
+    addTearDown(container.dispose);
+
+    final imported = await container
+        .read(accountSubscriptionSyncProvider)
+        .sync(
+          const AccountDashboard(
+            subscription: AccountSubscription(
+              id: 1,
+              packageName: 'VIP',
+              singboxUrl: singboxUrl,
+              universalUrl: universalUrl,
+              status: 'active',
+              remainingDays: 30,
+              isActive: true,
+            ),
+          ),
+        );
+
+    expect(imported, isTrue);
+    expect(repo.upsertedUrls, [singboxUrl, universalUrl]);
+    expect(repo.deletedIds, isEmpty);
+    expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, universalUrl);
+  });
 }
 
 class _FakeProfileRepository implements ProfileRepository {
@@ -435,6 +469,7 @@ class _FakeProfileRepository implements ProfileRepository {
   final List<String> deletedIds = [];
   final List<String> upsertedUrls = [];
   final List<UserOverride?> upsertedUserOverrides = [];
+  final Map<String, ProfileFailure> upsertFailuresByUrl = {};
   ProfileFailure? upsertFailure;
 
   @override
@@ -461,7 +496,7 @@ class _FakeProfileRepository implements ProfileRepository {
     CancelToken? cancelToken,
     bool active = false,
   }) {
-    final failure = upsertFailure;
+    final failure = upsertFailuresByUrl[url] ?? upsertFailure;
     if (failure != null) {
       upsertedUrls.add(url);
       upsertedUserOverrides.add(userOverride);

@@ -23,44 +23,61 @@ class AccountSubscriptionSync {
 
   Future<bool> sync(AccountDashboard? dashboard) async {
     final subscription = dashboard?.subscription;
-    final url = subscription?.importUrl ?? '';
     final repo = await _ref.read(profileRepositoryProvider.future);
     if (dashboard?.preserveLocalSubscription == true) {
       return false;
     }
-    final canImport = subscription != null && subscription.canImport && _isAccountSubscriptionUrl(url);
+    final urls = _accountImportUrls(subscription);
+    final canImport = subscription != null && subscription.canImport && urls.isNotEmpty;
     if (!canImport) {
       await _deleteAccountProfiles(repo);
       return false;
     }
 
-    final existingAccountProfile = await _findAccountProfile(repo, activeUrl: url);
-    await repo
-        .upsertRemote(url, userOverride: _accountUserOverride(existingAccountProfile), active: true)
-        .getOrElse((failure) => throw failure)
-        .run();
-    await _deleteAccountProfiles(repo, exceptUrl: url);
-    return true;
+    return _upsertFirstImportableAccountUrl(repo, urls);
   }
 
   Future<void> refreshActiveSubscription(AccountDashboard? dashboard) async {
     final repo = await _ref.read(profileRepositoryProvider.future);
     final subscription = dashboard?.subscription;
-    final activeUrl = subscription?.importUrl ?? '';
     if (dashboard?.preserveLocalSubscription == true) {
       return;
     }
-    final canImport = subscription != null && subscription.canImport && _isAccountSubscriptionUrl(activeUrl);
+    final urls = _accountImportUrls(subscription);
+    final canImport = subscription != null && subscription.canImport && urls.isNotEmpty;
     if (!canImport) {
       await _deleteAccountProfiles(repo);
       return;
     }
-    final existingAccountProfile = await _findAccountProfile(repo, activeUrl: activeUrl);
-    await repo
-        .upsertRemote(activeUrl, userOverride: _accountUserOverride(existingAccountProfile), active: true)
-        .getOrElse((failure) => throw failure)
-        .run();
-    await _deleteAccountProfiles(repo, exceptUrl: activeUrl);
+    await _upsertFirstImportableAccountUrl(repo, urls);
+  }
+
+  List<String> _accountImportUrls(AccountSubscription? subscription) {
+    if (subscription == null) {
+      return const [];
+    }
+    return subscription.importUrls.where(_isAccountSubscriptionUrl).toList(growable: false);
+  }
+
+  Future<bool> _upsertFirstImportableAccountUrl(ProfileRepository repo, List<String> urls) async {
+    Object? lastFailure;
+    for (final url in urls) {
+      final existingAccountProfile = await _findAccountProfile(repo, activeUrl: url);
+      try {
+        await repo
+            .upsertRemote(url, userOverride: _accountUserOverride(existingAccountProfile), active: true)
+            .getOrElse((failure) => throw failure)
+            .run();
+        await _deleteAccountProfiles(repo, exceptUrl: url);
+        return true;
+      } catch (error) {
+        lastFailure = error;
+      }
+    }
+    if (lastFailure != null) {
+      throw lastFailure;
+    }
+    return false;
   }
 
   bool _isAccountSubscriptionUrl(String url) {

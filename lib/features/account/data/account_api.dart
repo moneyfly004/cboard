@@ -470,20 +470,22 @@ class AccountSubscription {
   final bool isExpired;
 
   String get importUrl {
-    if (_isSupportedImportUrl(singboxUrl)) {
-      return singboxUrl;
+    final urls = importUrls;
+    return urls.isEmpty ? '' : urls.first;
+  }
+
+  List<String> get importUrls {
+    final urls = <String>[];
+    for (final url in [singboxUrl, universalUrl, subscriptionUrl, clashUrl]) {
+      if (_isSupportedImportUrl(url) && !urls.contains(url)) {
+        urls.add(url);
+      }
     }
-    if (_isSupportedImportUrl(universalUrl)) {
-      return universalUrl;
-    }
-    if (_isSupportedImportUrl(subscriptionUrl)) {
-      return subscriptionUrl;
-    }
-    return '';
+    return urls;
   }
 
   bool get canImport {
-    if (!isActive || isExpired || importUrl.isEmpty) {
+    if (!isActive || isExpired || importUrls.isEmpty) {
       return false;
     }
     if (remainingDays < 0) {
