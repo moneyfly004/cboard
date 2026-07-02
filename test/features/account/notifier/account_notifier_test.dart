@@ -342,8 +342,8 @@ void main() {
 
     expect(api.dashboardTokens, ['fresh-access-token']);
     expect(api.subscriptionTokens, ['fresh-access-token']);
-    expect(sync.syncedSubscriptions.single?.importUrl, fallbackUrl);
-    expect(notifier.state.dashboard?.subscription?.importUrl, fallbackUrl);
+    expect(sync.syncedSubscriptions.single?.importUrl, '$fallbackUrl&type=singbox');
+    expect(notifier.state.dashboard?.subscription?.importUrl, '$fallbackUrl&type=singbox');
     expect(imported, isTrue);
   });
 
@@ -384,7 +384,7 @@ void main() {
     expect(notifier.state.dashboard?.preserveLocalSubscription, isFalse);
     expect(
       notifier.state.dashboard?.subscription?.importUrl,
-      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox',
     );
   });
 
@@ -424,7 +424,7 @@ void main() {
     expect(imported, isFalse);
     expect(
       notifier.state.dashboard?.subscription?.importUrl,
-      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox',
     );
   });
 
@@ -452,7 +452,7 @@ void main() {
       await pumpEventQueue();
       expect(
         notifier.state.dashboard?.subscription?.importUrl,
-        'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
+        'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox',
       );
 
       api.reset();
@@ -471,7 +471,7 @@ void main() {
       expect(imported, isFalse);
       expect(
         notifier.state.dashboard?.subscription?.importUrl,
-        'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
+        'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox',
       );
     },
   );

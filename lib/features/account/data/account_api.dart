@@ -476,12 +476,28 @@ class AccountSubscription {
 
   List<String> get importUrls {
     final urls = <String>[];
-    for (final url in [singboxUrl, universalUrl, subscriptionUrl, clashUrl]) {
+    final preferredSingboxUrl = _isSupportedImportUrl(singboxUrl)
+        ? singboxUrl
+        : _withSubscribeType(importUrlSource, 'singbox');
+    for (final url in [preferredSingboxUrl, universalUrl, subscriptionUrl, clashUrl]) {
       if (_isSupportedImportUrl(url) && !urls.contains(url)) {
         urls.add(url);
       }
     }
     return urls;
+  }
+
+  String get importUrlSource {
+    if (_isSupportedImportUrl(universalUrl)) {
+      return universalUrl;
+    }
+    if (_isSupportedImportUrl(subscriptionUrl)) {
+      return subscriptionUrl;
+    }
+    if (_isSupportedImportUrl(clashUrl)) {
+      return clashUrl;
+    }
+    return '';
   }
 
   bool get canImport {
@@ -510,6 +526,19 @@ class AccountSubscription {
       return true;
     }
     return path.endsWith('/client/subscribe') && (uri.queryParameters['token']?.isNotEmpty ?? false);
+  }
+
+  static String _withSubscribeType(String url, String type) {
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        !uri.path.endsWith('/client/subscribe') ||
+        !(uri.queryParameters['token']?.isNotEmpty ?? false)) {
+      return '';
+    }
+    if (uri.queryParameters.containsKey('type')) {
+      return '';
+    }
+    return uri.replace(queryParameters: {...uri.queryParameters, 'type': type}).toString();
   }
 
   factory AccountSubscription.fromJson(Map<String, dynamic> json, {String baseUrl = kCBoardApiBaseUrl}) {

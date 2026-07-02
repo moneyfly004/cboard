@@ -249,6 +249,7 @@ void main() {
   test('sync deletes old account subscription after importing replacement config', () async {
     const oldAccountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/old-token';
     const accountUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token';
+    const accountSingboxUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox';
     final repo = _FakeProfileRepository([
       RemoteProfileEntity(
         id: 'old-account',
@@ -279,9 +280,9 @@ void main() {
           ),
         );
 
-    expect(repo.upsertedUrls, [accountUrl]);
+    expect(repo.upsertedUrls, [accountSingboxUrl]);
     expect(repo.deletedIds, ['old-account']);
-    expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, accountUrl);
+    expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, accountSingboxUrl);
   });
 
   test('sync deletes legacy account subscription from custom API host after replacement', () async {
@@ -373,6 +374,7 @@ void main() {
 
   test('sync imports backend client subscribe url after login', () async {
     const accountUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token';
+    const accountSingboxUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox';
     final repo = _FakeProfileRepository([]);
     final container = ProviderContainer(
       overrides: [profileRepositoryProvider.overrideWith((ref) => Future.value(repo))],
@@ -394,9 +396,9 @@ void main() {
           ),
         );
 
-    expect(repo.upsertedUrls, [accountUrl]);
+    expect(repo.upsertedUrls, [accountSingboxUrl]);
     expect(repo.upsertedUserOverrides, [AccountSubscriptionSync.accountProfileOverride]);
-    expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, accountUrl);
+    expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, accountSingboxUrl);
   });
 
   test('sync imports backend sing-box subscribe url when available', () async {

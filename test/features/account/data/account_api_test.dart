@@ -83,7 +83,7 @@ void main() {
           AccountSubscription(universalUrl: fallbackUrl, status: 'active', remainingDays: 30, isActive: true),
         ]);
 
-    expect(dashboard.subscription?.importUrl, fallbackUrl);
+    expect(dashboard.subscription?.importUrl, '$fallbackUrl&type=singbox');
     expect(dashboard.subscription?.canImport, isTrue);
   });
 
@@ -108,7 +108,7 @@ void main() {
 
     expect(dashboard.user.id, 9);
     expect(dashboard.user.email, 'alice@example.com');
-    expect(dashboard.subscription?.importUrl, subscriptionUrl);
+    expect(dashboard.subscription?.importUrl, '$subscriptionUrl&type=singbox');
     expect(dashboard.subscription?.canImport, isTrue);
     expect(dashboard.recentOrders, hasLength(1));
     expect(dashboard.totalSpent, 12.5);
@@ -124,7 +124,7 @@ void main() {
 
     expect(
       dashboard.subscription?.importUrl,
-      'https://dy.moneyfly.top/api/v1/client/subscribe?token=raw-dashboard-token',
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=raw-dashboard-token&type=singbox',
     );
     expect(dashboard.subscription?.canImport, isTrue);
   });
@@ -142,7 +142,7 @@ void main() {
     expect(dashboard.user.username, 'alice');
     expect(
       dashboard.subscription?.importUrl,
-      'https://dy.moneyfly.top/api/v1/client/subscribe?token=root-dashboard-token',
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=root-dashboard-token&type=singbox',
     );
     expect(dashboard.subscription?.canImport, isTrue);
   });
@@ -182,7 +182,10 @@ void main() {
       'days_until_expire': 30,
     });
 
-    expect(subscription.importUrl, 'https://dy.moneyfly.top/api/v1/client/subscribe?token=raw-model-token');
+    expect(
+      subscription.importUrl,
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=raw-model-token&type=singbox',
+    );
     expect(subscription.canImport, isTrue);
   });
 
@@ -230,6 +233,22 @@ void main() {
       'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox',
       'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
       'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=clash',
+    ]);
+    expect(subscription.canImport, isTrue);
+  });
+
+  test('AccountSubscription derives sing-box subscribe url from universal client subscribe url', () {
+    final subscription = AccountSubscription.fromJson({
+      'universal_url': 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
+      'status': 'active',
+      'is_active': true,
+      'days_until_expire': 30,
+    });
+
+    expect(subscription.importUrl, 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox');
+    expect(subscription.importUrls, [
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox',
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
     ]);
     expect(subscription.canImport, isTrue);
   });
@@ -285,7 +304,7 @@ void main() {
     final subscriptions = await api.getSubscriptions('access-token');
 
     expect(subscriptions, hasLength(1));
-    expect(subscriptions.single.importUrl, subscriptionUrl);
+    expect(subscriptions.single.importUrl, '$subscriptionUrl&type=singbox');
     expect(subscriptions.single.canImport, isTrue);
   });
 
@@ -308,7 +327,7 @@ void main() {
     expect(subscriptions, hasLength(1));
     expect(
       subscriptions.single.importUrl,
-      'https://dy.moneyfly.top/api/v1/client/subscribe?token=raw-subscription-token',
+      'https://dy.moneyfly.top/api/v1/client/subscribe?token=raw-subscription-token&type=singbox',
     );
     expect(subscriptions.single.canImport, isTrue);
   });
@@ -332,7 +351,7 @@ void main() {
 
     expect(
       dashboard.subscription?.importUrl,
-      'https://client.example.com/api/v1/client/subscribe?token=dashboard-token',
+      'https://client.example.com/api/v1/client/subscribe?token=dashboard-token&type=singbox',
     );
     expect(dashboard.subscription?.canImport, isTrue);
   });
@@ -348,7 +367,10 @@ void main() {
 
     final subscriptions = await api.getSubscriptions('access-token');
 
-    expect(subscriptions.single.importUrl, 'https://client.example.com/api/v1/client/subscribe?token=model-token');
+    expect(
+      subscriptions.single.importUrl,
+      'https://client.example.com/api/v1/client/subscribe?token=model-token&type=singbox',
+    );
     expect(subscriptions.single.canImport, isTrue);
   });
 
