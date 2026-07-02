@@ -475,28 +475,24 @@ class AccountSubscription {
   }
 
   List<String> get importUrls {
-    final urls = <String>[];
-    final preferredSingboxUrl = _isSupportedImportUrl(singboxUrl)
+    final preferredSingboxUrl = _isSingboxImportUrl(singboxUrl)
         ? singboxUrl
         : _withSubscribeType(importUrlSource, 'singbox');
-    final preferredClashUrl = _isSupportedImportUrl(clashUrl) ? clashUrl : _withSubscribeType(importUrlSource, 'clash');
-    for (final url in [preferredSingboxUrl, preferredClashUrl, universalUrl, subscriptionUrl]) {
-      if (_isSupportedImportUrl(url) && !urls.contains(url)) {
-        urls.add(url);
-      }
+    if (_isSingboxImportUrl(preferredSingboxUrl)) {
+      return [preferredSingboxUrl];
     }
-    return urls;
+    return const [];
   }
 
   String get importUrlSource {
+    if (_isSupportedImportUrl(singboxUrl)) {
+      return singboxUrl;
+    }
     if (_isSupportedImportUrl(universalUrl)) {
       return universalUrl;
     }
     if (_isSupportedImportUrl(subscriptionUrl)) {
       return subscriptionUrl;
-    }
-    if (_isSupportedImportUrl(clashUrl)) {
-      return clashUrl;
     }
     return '';
   }
@@ -527,6 +523,16 @@ class AccountSubscription {
       return true;
     }
     return path.endsWith('/client/subscribe') && (uri.queryParameters['token']?.isNotEmpty ?? false);
+  }
+
+  static bool _isSingboxImportUrl(String url) {
+    final uri = Uri.tryParse(url);
+    return uri != null &&
+        uri.hasScheme &&
+        uri.host.isNotEmpty &&
+        uri.path.endsWith('/client/subscribe') &&
+        (uri.queryParameters['token']?.isNotEmpty ?? false) &&
+        uri.queryParameters['type'] == 'singbox';
   }
 
   static String _withSubscribeType(String url, String type) {

@@ -189,7 +189,7 @@ void main() {
     expect(subscription.canImport, isTrue);
   });
 
-  test('AccountSubscription accepts backend subscribe url alias', () {
+  test('AccountSubscription rejects non-sing-box backend subscribe url alias for import', () {
     final subscription = AccountSubscription.fromJson({
       'subscribe_url': 'https://dy.moneyfly.top/api/v1/client/subscribe?token=alias-token&type=clash',
       'status': 'active',
@@ -197,8 +197,9 @@ void main() {
       'remaining_days': 30,
     });
 
-    expect(subscription.importUrl, 'https://dy.moneyfly.top/api/v1/client/subscribe?token=alias-token&type=clash');
-    expect(subscription.canImport, isTrue);
+    expect(subscription.importUrl, isEmpty);
+    expect(subscription.importUrls, isEmpty);
+    expect(subscription.canImport, isFalse);
   });
 
   test('AccountUser accepts numeric and string boolean flags', () {
@@ -231,8 +232,6 @@ void main() {
     expect(subscription.importUrl, 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox');
     expect(subscription.importUrls, [
       'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox',
-      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=clash',
-      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
     ]);
     expect(subscription.canImport, isTrue);
   });
@@ -248,8 +247,6 @@ void main() {
     expect(subscription.importUrl, 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox');
     expect(subscription.importUrls, [
       'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox',
-      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=clash',
-      'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token',
     ]);
     expect(subscription.canImport, isTrue);
   });

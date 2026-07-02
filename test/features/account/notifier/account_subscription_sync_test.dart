@@ -12,7 +12,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 void main() {
   test('sync only replaces account subscription profile', () async {
-    const accountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/account-token';
+    const accountUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox';
     final manualProfile = RemoteProfileEntity(
       id: 'manual',
       active: true,
@@ -61,7 +61,7 @@ void main() {
             subscription: AccountSubscription(
               id: 1,
               packageName: 'VIP',
-              universalUrl: accountUrl,
+              singboxUrl: accountUrl,
               status: 'active',
               remainingDays: 30,
               isActive: true,
@@ -117,7 +117,7 @@ void main() {
   });
 
   test('sync preserves account subscription when backend status is unavailable', () async {
-    const accountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/account-token';
+    const accountUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox';
     final repo = _FakeProfileRepository([
       RemoteProfileEntity(
         id: 'account',
@@ -169,7 +169,7 @@ void main() {
   });
 
   test('sync keeps user configured account subscription update interval', () async {
-    const accountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/account-token';
+    const accountUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox';
     final repo = _FakeProfileRepository([
       RemoteProfileEntity(
         id: 'account',
@@ -192,7 +192,7 @@ void main() {
             subscription: AccountSubscription(
               id: 1,
               packageName: 'VIP',
-              universalUrl: accountUrl,
+              singboxUrl: accountUrl,
               status: 'active',
               remainingDays: 30,
               isActive: true,
@@ -200,14 +200,13 @@ void main() {
           ),
         );
 
-    expect(repo.deletedIds, isEmpty);
     expect(repo.upsertedUserOverrides, [
       const UserOverride(name: AccountSubscriptionSync.accountProfileName, updateInterval: 12),
     ]);
   });
 
   test('sync keeps existing account subscription when importing new config fails', () async {
-    const accountUrl = 'https://dy.moneyfly.top/api/v1/subscriptions/universal/account-token';
+    const accountUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox';
     final repo = _FakeProfileRepository([
       RemoteProfileEntity(
         id: 'account',
@@ -231,7 +230,7 @@ void main() {
               subscription: AccountSubscription(
                 id: 1,
                 packageName: 'VIP',
-                universalUrl: accountUrl,
+                singboxUrl: accountUrl,
                 status: 'active',
                 remainingDays: 30,
                 isActive: true,
@@ -429,9 +428,8 @@ void main() {
     expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, singboxUrl);
   });
 
-  test('sync falls back when backend sing-box subscription cannot be parsed', () async {
+  test('sync does not fall back when backend sing-box subscription cannot be parsed', () async {
     const singboxUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox';
-    const clashUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=clash';
     const universalUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token';
     final repo = _FakeProfileRepository([])
       ..upsertFailuresByUrl[singboxUrl] = const ProfileFailure.invalidConfig(
@@ -442,7 +440,7 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    final imported = await container
+    final sync = container
         .read(accountSubscriptionSyncProvider)
         .sync(
           const AccountDashboard(
@@ -458,27 +456,25 @@ void main() {
           ),
         );
 
-    expect(imported, isTrue);
-    expect(repo.upsertedUrls, [singboxUrl, clashUrl]);
+    await expectLater(sync, throwsA(isA<ProfileFailure>()));
+    expect(repo.upsertedUrls, [singboxUrl]);
     expect(repo.deletedIds, isEmpty);
-    expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, clashUrl);
+    expect(repo.profiles.whereType<RemoteProfileEntity>(), isEmpty);
   });
 
-  test('sync falls back to universal url when derived formats cannot be parsed', () async {
+  test('sync only tries derived sing-box url and never falls back to universal url', () async {
     const singboxUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=singbox';
-    const clashUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token&type=clash';
     const universalUrl = 'https://dy.moneyfly.top/api/v1/client/subscribe?token=account-token';
     final repo = _FakeProfileRepository([])
       ..upsertFailuresByUrl[singboxUrl] = const ProfileFailure.invalidConfig(
         '[SingboxParser] unmarshal error: outbounds[0].server: json: unknown field "server"',
-      )
-      ..upsertFailuresByUrl[clashUrl] = const ProfileFailure.invalidConfig('unable to determine config format');
+      );
     final container = ProviderContainer(
       overrides: [profileRepositoryProvider.overrideWith((ref) => Future.value(repo))],
     );
     addTearDown(container.dispose);
 
-    final imported = await container
+    final sync = container
         .read(accountSubscriptionSyncProvider)
         .sync(
           const AccountDashboard(
@@ -493,10 +489,10 @@ void main() {
           ),
         );
 
-    expect(imported, isTrue);
-    expect(repo.upsertedUrls, [singboxUrl, clashUrl, universalUrl]);
+    await expectLater(sync, throwsA(isA<ProfileFailure>()));
+    expect(repo.upsertedUrls, [singboxUrl]);
     expect(repo.deletedIds, isEmpty);
-    expect(repo.profiles.whereType<RemoteProfileEntity>().single.url, universalUrl);
+    expect(repo.profiles.whereType<RemoteProfileEntity>(), isEmpty);
   });
 }
 
